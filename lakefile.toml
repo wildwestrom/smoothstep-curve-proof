@@ -1,5 +1,6 @@
 name = "playground"
-defaultTargets = ["proofs"]
+defaultTargets = ["proofs", "runLinter"]
+lintDriver = "runLinter"
 
 [leanOptions]
 pp.unicode.fun = true # pretty-prints `fun a ↦ b`
@@ -8,8 +9,16 @@ relaxedAutoImplicit = false
 
 [[require]]
 name = "mathlib"
-git = "https://github.com/leanprover-community/mathlib4"
-rev = "v4.21.0"
+scope = "leanprover-community"
+
+[[require]]
+name = "batteries"
+scope = "leanprover-community"
 
 [[lean_lib]]
 name = "proofs"
+
+[[lean_exe]]
+name = "runLinter"
+root = "Scripts.RunLinter"
+supportInterpreter = true

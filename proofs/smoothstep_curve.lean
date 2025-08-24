@@ -186,13 +186,12 @@ lemma F_eq_ratio_on_unit {G : ℝ → ℝ} {z : ℝ} (hz : z ∈ unitInterval)
   (hden : FDen G ≠ 0) : F G z = FNum G z / FDen G := by
   rcases hz with ⟨hz0, hz1⟩
   by_cases h0 : z = 0
-  · subst h0; simp [F, FNum, FDen, Set.uIoc, le_rfl]
+  · subst h0; simp [F, FNum, FDen, Set.uIoc]
   by_cases h1 : z = 1
   · subst h1
-    have hnum : FNum G 1 = FDen G := by simp [FNum, FDen, Set.uIoc, le_rfl]
     have hdenIoc : (∫ t in Set.Ioc 0 1, G t) ≠ 0 := by
       simpa [FDen, Set.uIoc, le_rfl] using hden
-    simp [F, FNum, FDen, Set.uIoc, le_rfl, hdenIoc, hnum]
+    simp [F, FNum, FDen, Set.uIoc, hdenIoc]
   simp [F, not_le.mpr (lt_of_le_of_ne hz0 (by simpa [eq_comm] using h0)),
     not_le.mpr (lt_of_le_of_ne hz1 (by simpa using h1))]
 
