@@ -56,13 +56,21 @@ section SmoothstepCore
 open scoped ContDiff Topology
 open MeasureTheory
 
+/-- The interval integral primitive starting at `a`: z ↦ ∫ t in (a)..z, f t. -/
+def primitiveFrom (a : ℝ) (f : ℝ → ℝ) : ℝ → ℝ :=
+  fun z => ∫ t in (a)..z, f t
+
+/-- The standard primitive from 0: z ↦ ∫ t in (0)..z, f t. -/
+abbrev primitiveFromZero (f : ℝ → ℝ) : ℝ → ℝ :=
+  primitiveFrom 0 f
+
 -- Fundamental: the primitive z ↦ ∫_{0..z} f is C^∞ on [0,1] if f is C^∞ on [0,1]
 lemma primitive_is_C_inf_on_unitInterval
   (f : ℝ → ℝ) (hfinf : ContDiffOn ℝ ∞ f unitInterval) :
-  ContDiffOn ℝ ∞ (fun z => ∫ t in (0)..z, f t) unitInterval := by
+  ContDiffOn ℝ ∞ (primitiveFromZero f) unitInterval := by
   classical
   have h_deriv_within : ∀ x ∈ unitInterval,
-      HasDerivWithinAt (fun z => ∫ t in (0)..z, f t) (f x) unitInterval x := by
+      HasDerivWithinAt (primitiveFromZero f) (f x) unitInterval x := by
     intro x hx
     have hx0 : (0 : ℝ) ≤ x := hx.1
     have hint : IntervalIntegrable f volume 0 x := by
@@ -85,22 +93,22 @@ lemma primitive_is_C_inf_on_unitInterval
         (f := f) hint hmeas (hfinf.continuousOn.continuousWithinAt hx))
   have hUD : UniqueDiffOn ℝ unitInterval := by
     simpa [unitInterval] using uniqueDiffOn_Icc_zero_one
-  have h_diff : DifferentiableOn ℝ (fun z => ∫ t in (0)..z, f t) unitInterval :=
+  have h_diff : DifferentiableOn ℝ (primitiveFromZero f) unitInterval :=
     fun x hx => (h_deriv_within x hx).differentiableWithinAt
   have h_deriv_eq : ∀ x ∈ unitInterval,
-      derivWithin (fun z => ∫ t in (0)..z, f t) unitInterval x = f x := by
+      derivWithin (primitiveFromZero f) unitInterval x = f x := by
     intro x hx
     have hsx : UniqueDiffWithinAt ℝ unitInterval x := by
       simpa [unitInterval] using (uniqueDiffOn_Icc_zero_one x ⟨hx.1, hx.2⟩)
     simpa using (HasDerivWithinAt.derivWithin (h_deriv_within x hx) hsx)
   have hC : ContDiffOn ℝ ∞
-      (fun z => derivWithin (fun z => ∫ t in (0)..z, f t) unitInterval z)
+      (fun z => derivWithin (primitiveFromZero f) unitInterval z)
       unitInterval :=
     (contDiffOn_congr (s := unitInterval)
-      (f₁ := fun z => derivWithin (fun z => ∫ t in (0)..z, f t) unitInterval z)
+      (f₁ := fun z => derivWithin (primitiveFromZero f) unitInterval z)
       (f := f) h_deriv_eq).mpr hfinf
   have hcrit := (contDiffOn_infty_iff_derivWithin (𝕜 := ℝ)
-    (s₂ := unitInterval) (f₂ := fun z => ∫ t in (0)..z, f t) hUD)
+    (s₂ := unitInterval) (f₂ := primitiveFromZero f) hUD)
   exact hcrit.mpr ⟨h_diff, hC⟩
 
 -- Helper: rewrite uIoc integral as intervalIntegral on [0,1]
@@ -128,7 +136,7 @@ lemma FNum_contDiffOn
   {G : ℝ → ℝ} (hG : ContDiffOn ℝ ∞ G unitInterval) :
   ContDiffOn ℝ ∞ (FNum G) unitInterval := by
   classical
-  let P : ℝ → ℝ := fun z => ∫ t in (0)..z, G t
+  let P : ℝ → ℝ := primitiveFromZero G
   have hP : ContDiffOn ℝ ∞ P unitInterval :=
     primitive_is_C_inf_on_unitInterval G hG
   have h_congr : ∀ z ∈ unitInterval, FNum G z = P z := by
