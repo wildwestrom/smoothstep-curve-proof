@@ -1,5 +1,4 @@
 /-
-
 This spiral uses a smoothstep-based curvature function,
 providing a $G^\infty$ continuous transition from tangent to circular arc.
 
@@ -22,9 +21,9 @@ with initial conditions $x(0)=0,\ y(0)=0,\ \theta(0)=0$.
 
 The curvature is:
 $$\kappa(s) = R F\left(\frac{s}{L}\right)$$
+-/
 
----
-
+/-
 This spiral also uses a smoothstep-based curvature function,
 providing a $G^\infty$ continuous transition from tangent to circular arc.
 
@@ -55,11 +54,6 @@ with initial conditions $x(0)=0,\ y(0)=0,\ \theta(0)=0$.
 
 The curvature is:
 $$\kappa(s) = \frac{R}{2} F\left(\frac{2s}{L}\right)$$
-
----
-
-My goal is to prove both of my curvature functions are $C^\infty$ continuous.
-
 -/
 
 import Mathlib.Analysis.Calculus.ContDiff.Basic
@@ -88,6 +82,150 @@ import Mathlib.Order.Filter.Tendsto
 import Mathlib.MeasureTheory.Integral.IntervalIntegral.Basic
 import Mathlib.MeasureTheory.Integral.IntervalIntegral.FundThmCalculus
 import Mathlib.MeasureTheory.Measure.MeasureSpaceDef
+
+noncomputable
+section SmoothstepCore
+
+open scoped ContDiff Topology
+open MeasureTheory
+
+-- Fundamental: the primitive z ↦ ∫_{0..z} f is C^∞ on [0,1] if f is C^∞ on [0,1]
+lemma primitive_is_C_inf_on_unitInterval
+  (f : ℝ → ℝ) (hfinf : ContDiffOn ℝ ∞ f unitInterval) :
+  ContDiffOn ℝ ∞ (fun z => ∫ t in (0)..z, f t) unitInterval := by
+  classical
+  have h_deriv_within : ∀ x ∈ unitInterval,
+      HasDerivWithinAt (fun z => ∫ t in (0)..z, f t) (f x) unitInterval x := by
+    intro x hx
+    have hx0 : (0 : ℝ) ≤ x := hx.1
+    have hint : IntervalIntegrable f volume 0 x := by
+      have hcont' : ContinuousOn f (Set.Icc 0 x) :=
+        hfinf.continuousOn.mono (Set.Icc_subset_Icc le_rfl hx.2)
+      simpa using
+        (ContinuousOn.intervalIntegrable_of_Icc (μ := volume)
+          (u := f) (a := 0) (b := x) (h := hx0) hcont')
+    haveI : Fact (x ∈ Set.Icc (0 : ℝ) 1) := ⟨hx.1, hx.2⟩
+    haveI : intervalIntegral.FTCFilter x (𝓝[unitInterval] x) (𝓝[unitInterval] x) := by
+      simpa [unitInterval] using
+        (inferInstance : intervalIntegral.FTCFilter x (𝓝[Set.Icc (0 : ℝ) 1] x)
+          (𝓝[Set.Icc (0 : ℝ) 1] x))
+    have hmeas : StronglyMeasurableAtFilter f (𝓝[unitInterval] x) volume := by
+      have hmeasSet : MeasurableSet unitInterval := by
+        simp [unitInterval, isClosed_Icc.measurableSet]
+      exact hfinf.continuousOn.stronglyMeasurableAtFilter_nhdsWithin (hs := hmeasSet) x
+    simpa using
+      (intervalIntegral.integral_hasDerivWithinAt_right (a := 0) (b := x)
+        (f := f) hint hmeas (hfinf.continuousOn.continuousWithinAt hx))
+  have hUD : UniqueDiffOn ℝ unitInterval := by
+    simpa [unitInterval] using uniqueDiffOn_Icc_zero_one
+  have h_diff : DifferentiableOn ℝ (fun z => ∫ t in (0)..z, f t) unitInterval :=
+    fun x hx => (h_deriv_within x hx).differentiableWithinAt
+  have h_deriv_eq : ∀ x ∈ unitInterval,
+      derivWithin (fun z => ∫ t in (0)..z, f t) unitInterval x = f x := by
+    intro x hx
+    have hsx : UniqueDiffWithinAt ℝ unitInterval x := by
+      simpa [unitInterval] using (uniqueDiffOn_Icc_zero_one x ⟨hx.1, hx.2⟩)
+    simpa using (HasDerivWithinAt.derivWithin (h_deriv_within x hx) hsx)
+  have hC : ContDiffOn ℝ ∞
+      (fun z => derivWithin (fun z => ∫ t in (0)..z, f t) unitInterval z)
+      unitInterval :=
+    (contDiffOn_congr (s := unitInterval)
+      (f₁ := fun z => derivWithin (fun z => ∫ t in (0)..z, f t) unitInterval z)
+      (f := f) h_deriv_eq).mpr hfinf
+  have hcrit := (contDiffOn_infty_iff_derivWithin (𝕜 := ℝ)
+    (s₂ := unitInterval) (f₂ := fun z => ∫ t in (0)..z, f t) hUD)
+  exact hcrit.mpr ⟨h_diff, hC⟩
+
+-- Helper: rewrite uIoc integral as intervalIntegral on [0,1]
+lemma uIoc_to_intervalIntegral_on_unit
+  (f : ℝ → ℝ) {z : ℝ} (hz : z ∈ unitInterval) :
+  (∫ t in Set.uIoc 0 z, f t) = ∫ t in (0)..z, f t := by
+  have hz0 : (0 : ℝ) ≤ z := hz.1
+  -- intervalIntegral gives ∫(0..z) = ∫_{Ioc 0 z}
+  have h := (intervalIntegral.integral_of_le (μ := volume)
+    (f := f) (a := (0 : ℝ)) (b := z) hz0)
+  -- rewrite uIoc to Ioc using 0 ≤ z, then flip sides
+  simpa [Set.uIoc, hz0] using h.symm
+
+-- Generic normalized primitive and curvature based on a bump-like G
+namespace Smooth
+
+def FNum (G : ℝ → ℝ) (z : ℝ) : ℝ := ∫ t in Set.uIoc 0 z, G t
+
+def FDen (G : ℝ → ℝ) : ℝ := ∫ t in Set.uIoc 0 1, G t
+
+def F (G : ℝ → ℝ) (z : ℝ) : ℝ :=
+  if z ≤ 0 then 0 else if 1 ≤ z then 1 else FNum G z / FDen G
+
+lemma FNum_contDiffOn
+  {G : ℝ → ℝ} (hG : ContDiffOn ℝ ∞ G unitInterval) :
+  ContDiffOn ℝ ∞ (FNum G) unitInterval := by
+  classical
+  let P : ℝ → ℝ := fun z => ∫ t in (0)..z, G t
+  have hP : ContDiffOn ℝ ∞ P unitInterval :=
+    primitive_is_C_inf_on_unitInterval G hG
+  have h_congr : ∀ z ∈ unitInterval, FNum G z = P z := by
+    intro z hz; simpa [FNum, P] using uIoc_to_intervalIntegral_on_unit G hz
+  exact ContDiffOn.congr_mono hP h_congr fun ⦃a⦄ a ↦ a
+
+lemma FDen_pos
+  {G : ℝ → ℝ} (hint : IntervalIntegrable G volume 0 1)
+  (hpos : ∀ x ∈ Set.Ioo 0 1, 0 < G x) :
+  0 < FDen G := by
+  have hposI' : 0 < ∫ x in (0)..(1), G x :=
+    intervalIntegral.intervalIntegral_pos_of_pos_on (a:=0) (b:=1) (f:=G) hint hpos (by norm_num)
+  have hposI : 0 < ∫ x in Set.Ioc 0 1, G x := by
+    simpa [intervalIntegral.integral_of_le (μ := volume)
+      (f:=G) (a:=0) (b:=1) (by norm_num : (0:ℝ) ≤ 1)] using hposI'
+  simpa [FDen, Set.uIoc, le_rfl] using hposI
+
+lemma FDen_ne_zero {G : ℝ → ℝ}
+  (h : 0 < FDen G) : FDen G ≠ 0 := h.ne'
+
+lemma F_eq_ratio_on_unit {G : ℝ → ℝ} {z : ℝ} (hz : z ∈ unitInterval)
+  (hden : FDen G ≠ 0) : F G z = FNum G z / FDen G := by
+  rcases hz with ⟨hz0, hz1⟩
+  by_cases h0 : z = 0
+  · subst h0; simp [F, FNum, FDen, Set.uIoc, le_rfl]
+  by_cases h1 : z = 1
+  · subst h1
+    have hnum : FNum G 1 = FDen G := by simp [FNum, FDen, Set.uIoc, le_rfl]
+    have hdenIoc : (∫ t in Set.Ioc 0 1, G t) ≠ 0 := by
+      simpa [FDen, Set.uIoc, le_rfl] using hden
+    simp [F, FNum, FDen, Set.uIoc, le_rfl, hdenIoc, hnum]
+  simp [F, not_le.mpr (lt_of_le_of_ne hz0 (by simpa [eq_comm] using h0)),
+    not_le.mpr (lt_of_le_of_ne hz1 (by simpa using h1))]
+
+lemma F_contDiffOn
+  {G : ℝ → ℝ} (hG : ContDiffOn ℝ ∞ G unitInterval) (hden : FDen G ≠ 0) :
+  ContDiffOn ℝ ∞ (F G) unitInterval := by
+  have hNum := FNum_contDiffOn (G := G) hG
+  have h : ContDiffOn ℝ ∞ (fun x => FNum G x / FDen G) unitInterval :=
+    ContDiffOn.div_const hNum (FDen G)
+  exact (contDiffOn_congr (s := unitInterval) (f₁ := F G)
+    (f := fun x => FNum G x / FDen G)
+    (by intro x hx; simpa using (F_eq_ratio_on_unit (G := G) hx hden))).mpr h
+
+def kappa (G : ℝ → ℝ) (s R L : ℝ) : ℝ := R * F G (s / L)
+
+lemma kappa_contDiffOn
+  {G : ℝ → ℝ} (hG : ContDiffOn ℝ ∞ G unitInterval)
+  (hden : FDen G ≠ 0) (R L : ℝ) (hL : 0 < L) :
+  ContDiffOn ℝ ∞ (fun s => kappa G s R L) (Set.Icc 0 L) := by
+  -- map Set.Icc 0 L to unitInterval via s ↦ s / L
+  have hmap : ∀ {s}, s ∈ Set.Icc 0 L → s / L ∈ unitInterval := by
+    intro s hs; rcases hs with ⟨hs0, hsL⟩
+    exact ⟨div_nonneg hs0 (le_of_lt hL), by
+      have hLne : L ≠ 0 := ne_of_gt hL
+      simpa [div_self hLne] using div_le_div_of_nonneg_right hsL (le_of_lt hL)⟩
+  have hF : ContDiffOn ℝ ∞ (F G) unitInterval := F_contDiffOn (G := G) hG hden
+  have hcomp : ContDiffOn ℝ ∞ (fun s => F G (s / L)) (Set.Icc 0 L) :=
+    (hF.comp (contDiffOn_id.div_const (c := L)) (by intro s hs; exact hmap hs))
+  simpa [kappa] using contDiffOn_const.mul hcomp
+
+end Smooth
+
+end SmoothstepCore
 
 noncomputable
 section smoothstep_curve_1
@@ -164,123 +302,27 @@ lemma expNegInvGlue_comp_is_C_inf_on_D :
 lemma G_is_C_inf : ContDiffOn ℝ ∞ G unitInterval := by
   exact expNegInvGlue_comp_is_C_inf_on_D
 
-def F_num (z : ℝ) : ℝ := ∫ t in Set.uIoc 0 z, G t
+open MeasureTheory Smooth
 
-open MeasureTheory
-
--- Helper: the primitive z ↦ ∫_{0..z} f is C^∞ on [0,1] if f is C^∞ on [0,1]
-private lemma primitive_is_C_inf_on_unitInterval
-  (f : ℝ → ℝ) (hfinf : ContDiffOn ℝ ∞ f unitInterval) :
-  ContDiffOn ℝ ∞ (fun z => ∫ t in (0)..z, f t) unitInterval := by
-  classical
-  -- FTC within [0,1]
-  have h_deriv_within : ∀ x ∈ unitInterval,
-      HasDerivWithinAt (fun z => ∫ t in (0)..z, f t) (f x) unitInterval x := by
-    intro x hx
-    have hx0 : (0 : ℝ) ≤ x := hx.1
-    have hint : IntervalIntegrable f volume 0 x := by
-      have hcont' : ContinuousOn f (Set.Icc 0 x) :=
-        hfinf.continuousOn.mono (Set.Icc_subset_Icc le_rfl hx.2)
-      simpa using
-        (ContinuousOn.intervalIntegrable_of_Icc (μ := volume)
-          (u := f) (a := 0) (b := x) (h := hx0) hcont')
-    haveI : Fact (x ∈ Set.Icc (0 : ℝ) 1) := ⟨hx.1, hx.2⟩
-    haveI : intervalIntegral.FTCFilter x (𝓝[unitInterval] x) (𝓝[unitInterval] x) := by
-      simpa [unitInterval] using
-        (inferInstance : intervalIntegral.FTCFilter x (𝓝[Set.Icc (0 : ℝ) 1] x)
-          (𝓝[Set.Icc (0 : ℝ) 1] x))
-    have hmeas : StronglyMeasurableAtFilter f (𝓝[unitInterval] x) volume := by
-      have hmeasSet : MeasurableSet unitInterval := by
-        simp [unitInterval, isClosed_Icc.measurableSet]
-      exact hfinf.continuousOn.stronglyMeasurableAtFilter_nhdsWithin (hs := hmeasSet) x
-    simpa using
-      (intervalIntegral.integral_hasDerivWithinAt_right (a := 0) (b := x)
-        (f := f) hint hmeas (hfinf.continuousOn.continuousWithinAt hx))
-  -- Unique differentiability on [0,1]
-  have hUD : UniqueDiffOn ℝ unitInterval := by
-    simpa [unitInterval] using uniqueDiffOn_Icc_zero_one
-  -- Differentiate-within ⇒ differentiable-within
-  have h_diff : DifferentiableOn ℝ (fun z => ∫ t in (0)..z, f t) unitInterval :=
-    fun x hx => (h_deriv_within x hx).differentiableWithinAt
-  -- The within derivative equals f
-  have h_deriv_eq : ∀ x ∈ unitInterval,
-      derivWithin (fun z => ∫ t in (0)..z, f t) unitInterval x = f x := by
-    intro x hx
-    have hsx : UniqueDiffWithinAt ℝ unitInterval x := by
-      simpa [unitInterval] using (uniqueDiffOn_Icc_zero_one x ⟨hx.1, hx.2⟩)
-    simpa using (HasDerivWithinAt.derivWithin (h_deriv_within x hx) hsx)
-  -- Apply the C^∞-criterion via within-derivatives
-  have hC : ContDiffOn ℝ ∞
-      (fun z => derivWithin (fun z => ∫ t in (0)..z, f t) unitInterval z)
-      unitInterval :=
-    (contDiffOn_congr (s := unitInterval)
-      (f₁ := fun z => derivWithin (fun z => ∫ t in (0)..z, f t) unitInterval z)
-      (f := f) h_deriv_eq).mpr hfinf
-  have hcrit := (contDiffOn_infty_iff_derivWithin (𝕜 := ℝ)
-    (s₂ := unitInterval) (f₂ := fun z => ∫ t in (0)..z, f t) hUD)
-  exact hcrit.mpr ⟨h_diff, hC⟩
-
--- Helper: rewrite uIoc integral as intervalIntegral on [0,1]
-private lemma uIoc_to_intervalIntegral_on_unit
-  (f : ℝ → ℝ) {z : ℝ} (hz : z ∈ unitInterval) :
-  (∫ t in Set.uIoc 0 z, f t) = ∫ t in (0)..z, f t := by
-  have hz0 : (0 : ℝ) ≤ z := hz.1
-  -- intervalIntegral gives ∫(0..z) = ∫_{Ioc 0 z}
-  have h := (intervalIntegral.integral_of_le (μ := volume)
-    (f := f) (a := (0 : ℝ)) (b := z) hz0)
-  -- rewrite uIoc to Ioc using 0 ≤ z, then flip sides
-  simpa [Set.uIoc, hz0] using h.symm
-
-lemma F_num_is_C_inf : ContDiffOn ℝ ∞ F_num unitInterval := by
-  classical
-  let P : ℝ → ℝ := fun z => ∫ t in (0)..z, G t
-  -- P is the primitive of G on (0)..z
-  have hP : ContDiffOn ℝ ∞ P unitInterval :=
-    primitive_is_C_inf_on_unitInterval G G_is_C_inf
-  -- F_num agrees with P on [0,1]
-  have h_congr_PI : ∀ z ∈ unitInterval, F_num z = P z := by
-    intro z hz
-    simpa [F_num, P] using (uIoc_to_intervalIntegral_on_unit G hz)
-  -- Transfer C^∞ from P to F_num using equality on [0,1]
-  exact (contDiffOn_congr (s := unitInterval) (f₁ := F_num) (f := P) h_congr_PI).mpr hP
-
-def F_den : ℝ := ∫ t in Set.uIoc 0 1, G t
-
-lemma F_den_pos : 0 < F_den := by
+lemma FDen_G_pos : 0 < FDen G := by
   have hfi : IntervalIntegrable G volume 0 1 := by
     simpa using (ContinuousOn.intervalIntegrable_of_Icc (μ := volume)
       (u := G) (a := 0) (b := 1) (h := by norm_num) G_is_C_inf.continuousOn)
-  have hpos : ∀ x : ℝ, x ∈ Set.Ioo 0 1 → 0 < G x := by
-    intro x hx
-    exact expNegInvGlue.pos_of_pos (denom_pos_on_Ioo x hx)
+  have hpos : ∀ x ∈ Set.Ioo 0 1, 0 < G x := by
+    intro x hx; exact expNegInvGlue.pos_of_pos (denom_pos_on_Ioo x hx)
   have hposI' : 0 < ∫ x in (0)..(1), G x :=
     intervalIntegral.intervalIntegral_pos_of_pos_on (a:=0) (b:=1) (f:=G) hfi hpos (by norm_num)
   have hposI : 0 < ∫ x in Set.Ioc 0 1, G x := by
     simpa [intervalIntegral.integral_of_le (μ := volume)
       (f:=G) (a:=0) (b:=1) (by norm_num : (0:ℝ) ≤ 1)] using hposI'
-  simpa [F_den, Set.uIoc, le_rfl] using hposI
+  simpa [FDen, Set.uIoc, le_rfl] using hposI
 
-lemma F_den_ne_0 : F_den ≠ 0 := by
-  exact F_den_pos.ne'
+lemma FDen_G_ne_zero : FDen G ≠ 0 := (FDen_G_pos).ne'
 
-def F (z : ℝ) : ℝ :=
-  if z ≤ 0 then 0
-  else if 1 ≤ z then 1
-  else (F_num z / F_den)
+def F1 : ℝ → ℝ := F G
 
-lemma F_eq_ratio_on_unit {z : ℝ} (hz : z ∈ unitInterval) :
-  F z = F_num z / F_den := by
-  rcases hz with ⟨hz0, hz1⟩
-  by_cases h0 : z = 0
-  · subst h0
-    simp [F, F_num, F_den, Set.uIoc, le_rfl]
-  by_cases h1 : z = 1
-  · subst h1
-    have hnum : F_num 1 = F_den := by
-      simp [F_num, F_den, Set.uIoc, le_rfl]
-    simp [F, le_rfl, hnum, F_den_ne_0]
-  simp [F, not_le.mpr (lt_of_le_of_ne hz0 (by simpa [eq_comm] using h0)),
-    not_le.mpr (lt_of_le_of_ne hz1 (by simpa using h1))]
+lemma F1_is_C_inf : ContDiffOn ℝ ∞ F1 unitInterval := by
+  simpa [F1] using (F_contDiffOn (G := G) G_is_C_inf FDen_G_ne_zero)
 
 lemma G_NeZero : (fun (t : ℝ) => G t) ≠ 0 := by
   intro hzero
@@ -291,11 +333,7 @@ lemma G_NeZero : (fun (t : ℝ) => G t) ≠ 0 := by
   exact (ne_of_gt hpos) (by simpa using congrArg (fun f => f (1 / 2 : ℝ)) hzero)
 
 -- F is C^∞ continuous on [0, 1]
-lemma F_is_C_inf : ContDiffOn ℝ ∞ F unitInterval := by
-  exact (contDiffOn_congr (s := unitInterval) (f₁ := F)
-    (f := fun x => F_num x / F_den)
-    (by intro x hx; simpa using F_eq_ratio_on_unit hx)).mpr
-    (ContDiffOn.div_const F_num_is_C_inf F_den)
+lemma F_is_C_inf : ContDiffOn ℝ ∞ F1 unitInterval := F1_is_C_inf
 
 def κ_smooth (s R L) :=
   R * Real.smoothTransition (s / L)
@@ -311,28 +349,86 @@ lemma κ_smooth_at_L (hL : L ≠ 0) : κ_smooth L R L = R := by
   simp [κ_smooth, div_self hL, Real.smoothTransition.one]
 
 def κ (s R L : ℝ) : ℝ :=
-  R * F (s / L)
+  kappa G s R L
 
--- My curvature function is C^∞ continuous on [0, 1]
+-- My curvature function is C^∞ continuous on [0, L]
 theorem κ_is_C_inf_on_Icc (R L : ℝ) (hL : 0 < L) :
   ContDiffOn ℝ ∞ (fun s => κ s R L) (Set.Icc 0 L) := by
-  simpa [κ] using
-    (contDiffOn_const.mul ((F_is_C_inf.comp (contDiffOn_id.div_const (c := L))
-      (by
-        intro s hs
-        rcases hs with ⟨hs0, hsL⟩
-        exact ⟨div_nonneg hs0 (le_of_lt hL),
-        by simpa [div_self (ne_of_gt hL)] using div_le_div_of_nonneg_right hsL (le_of_lt hL)⟩
-      )
-    )))
+  simpa [κ] using (kappa_contDiffOn (G := G) G_is_C_inf FDen_G_ne_zero R L hL)
 
 theorem κ_at_zero : κ 0 R L = 0 := by
-  simp [κ, F]
+  simp [κ, kappa, F]
 
 theorem κ_at_L (hL : L ≠ 0) : κ L R L = R := by
-  simp [κ, F, div_self hL]
+  simp [κ, kappa, F, div_self hL]
 
 end smoothstep_curve_1
 
 noncomputable
 section smoothstep_curve_2
+
+open scoped ContDiff Topology
+open Smooth
+open MeasureTheory
+
+-- Shifted bump: G₂(t) = exp(-1/(1-(t-1)^2)) on |t-1|<1, 0 otherwise
+def denom2 (t : ℝ) : ℝ := 1 - (t - 1)^2
+
+lemma denom2_contDiff : ContDiff ℝ ∞ denom2 := by
+  simpa [denom2] using (contDiff_const.sub ((contDiff_id.sub contDiff_const).pow 2))
+
+lemma denom2_contDiffOn : ContDiffOn ℝ ∞ denom2 unitInterval := by
+  simpa using denom2_contDiff.contDiffOn
+
+def G2 (t : ℝ) : ℝ := expNegInvGlue (denom2 t)
+
+lemma G2_is_C_inf : ContDiffOn ℝ ∞ G2 unitInterval := by
+  simpa [G2] using (expNegInvGlue.contDiff.comp denom2_contDiff).contDiffOn
+
+-- Normalized primitive F₂ from G₂
+def F2 : ℝ → ℝ := F G2
+
+-- positivity of denom2 on (0,1)
+lemma denom2_pos_on_Ioo {x : ℝ} (hx : x ∈ Set.Ioo 0 1) : 0 < denom2 x := by
+  have habs : |x - 1| < 1 := by
+    have h1 : -1 < x - 1 := by linarith [hx.1]
+    have h2 : x - 1 < 1 := by linarith [hx.2]
+    exact abs_lt.mpr ⟨by simpa [neg_one_mul] using h1, h2⟩
+  have hsq : (x - 1)^2 < 1 := by
+    have := (sq_lt_one_iff_abs_lt_one (a := x - 1)).mpr habs
+    simpa [pow_two] using this
+  have : 1 - (x - 1)^2 > 0 := sub_pos.mpr hsq
+  simpa [denom2] using this
+
+lemma FDen_G2_pos : 0 < FDen G2 := by
+  have hfi : IntervalIntegrable G2 volume 0 1 := by
+    simpa using (ContinuousOn.intervalIntegrable_of_Icc (μ := volume)
+      (u := G2) (a := 0) (b := 1) (h := by norm_num) G2_is_C_inf.continuousOn)
+  have hpos : ∀ x ∈ Set.Ioo 0 1, 0 < G2 x := by
+    intro x hx; exact expNegInvGlue.pos_of_pos (denom2_pos_on_Ioo hx)
+  have hposI' : 0 < ∫ x in (0)..(1), G2 x :=
+    intervalIntegral.intervalIntegral_pos_of_pos_on (a:=0) (b:=1) (f:=G2) hfi hpos (by norm_num)
+  have hposI : 0 < ∫ x in Set.Ioc 0 1, G2 x := by
+    simpa [intervalIntegral.integral_of_le (μ := volume)
+      (f:=G2) (a:=0) (b:=1) (by norm_num : (0:ℝ) ≤ 1)] using hposI'
+  simpa [FDen, Set.uIoc, le_rfl] using hposI
+
+lemma FDen_G2_ne_zero : FDen G2 ≠ 0 := (FDen_G2_pos).ne'
+
+lemma F2_is_C_inf : ContDiffOn ℝ ∞ F2 unitInterval := by
+  simpa [F2] using (F_contDiffOn (G := G2) G2_is_C_inf FDen_G2_ne_zero)
+
+-- Curvature κ₂(s; R, L) = R * F₂(s/L)
+def κ₂ (s R L : ℝ) : ℝ := kappa G2 s R L
+
+theorem κ₂_is_C_inf_on_Icc (R L : ℝ) (hL : 0 < L) :
+  ContDiffOn ℝ ∞ (fun s => κ₂ s R L) (Set.Icc 0 L) := by
+  simpa [κ₂] using (kappa_contDiffOn (G := G2) G2_is_C_inf FDen_G2_ne_zero R L hL)
+
+theorem κ₂_at_zero : κ₂ 0 R L = 0 := by
+  simp [κ₂, kappa, F]
+
+theorem κ₂_at_L (hL : L ≠ 0) : κ₂ L R L = R := by
+  simp [κ₂, kappa, F, div_self hL]
+
+end smoothstep_curve_2
