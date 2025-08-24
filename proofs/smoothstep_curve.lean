@@ -105,7 +105,7 @@ lemma denom_contDiff : ContDiff ℝ ∞ denom_fn := by
 lemma denom_contDiffOn : ContDiffOn ℝ ∞ denom_fn unitInterval := by
   simpa using denom_is_C_inf
 
-lemma denom_nonzero_on_Ioo (t : ℝ) (ht : t ∈ Set.Ioo 0 1) : 0 < denom_fn t := by
+lemma denom_pos_on_Ioo (t : ℝ) (ht : t ∈ Set.Ioo 0 1) : 0 < denom_fn t := by
   rcases ht with ⟨ht0, ht1⟩
   exact mul_pos ht0 (sub_pos.mpr ht1)
 
@@ -114,45 +114,44 @@ lemma exp_is_C_inf : ContDiffOn ℝ ∞ (fun t => Real.exp t) unitInterval := by
 
 def bump_core (t : ℝ) : ℝ := Real.exp (-1 / (t * (1 - t)))
 
-lemma denom_fn_Nonzero : ∀ t ∈ Set.Ioo 0 1, denom_fn t ≠ 0 := by
+lemma denom_ne_zero_on_Ioo : ∀ t ∈ Set.Ioo 0 1, denom_fn t ≠ 0 := by
   intro t ht
-  exact (denom_nonzero_on_Ioo t ht).ne'
+  exact (denom_pos_on_Ioo t ht).ne'
+
+-- Outside (0,1), the denominator is nonpositive
+lemma denom_nonpos_of_not_mem_Ioo {t : ℝ} (ht : t ∉ Set.Ioo (0:ℝ) 1) :
+  denom_fn t ≤ 0 := by
+  have hcases : t ≤ 0 ∨ 1 ≤ t := by
+    have : ¬ (0 < t ∧ t < 1) := by simpa [Set.mem_Ioo] using ht
+    rcases not_and_or.mp this with hnot0 | hnot1
+    · exact Or.inl (le_of_not_gt hnot0)
+    · exact Or.inr (le_of_not_gt hnot1)
+  cases hcases with
+  | inl hle0 =>
+    exact mul_nonpos_of_nonpos_of_nonneg hle0 (sub_nonneg.mpr (le_trans hle0 (by norm_num)))
+  | inr h1le =>
+    exact mul_nonpos_of_nonneg_of_nonpos (le_trans (show (0:ℝ) ≤ 1 by norm_num) h1le)
+      (sub_nonpos.mpr h1le)
 
 lemma bump_core_is_C_inf : ContDiffOn ℝ ∞ bump_core (Set.Ioo 0 1) := by
-  have h_inner2 : ContDiffOn ℝ ∞ (fun t : ℝ => -1 / (t * (1 - t))) (Set.Ioo (0 : ℝ) 1) := by
+  exact Real.contDiff_exp.comp_contDiffOn <| by
     simpa [denom_fn] using ContDiffOn.div
       (contDiffOn_const : ContDiffOn ℝ ∞ (fun _ : ℝ => (-1 : ℝ)) (Set.Ioo (0 : ℝ) 1))
       (denom_is_C_inf.mono (Set.Ioo_subset_Icc_self))
-      denom_fn_Nonzero
-  exact Real.contDiff_exp.comp_contDiffOn h_inner2
+      denom_ne_zero_on_Ioo
 
 lemma expNegInvGlue_comp_denom_fn_eq_indicator_bump :
   (fun t => expNegInvGlue (denom_fn t))
   = Set.indicator (Set.Ioo (0:ℝ) 1) bump_core := by
   funext t
   by_cases ht : t ∈ Set.Ioo (0:ℝ) 1
-  · have hpos : 0 < denom_fn t := denom_nonzero_on_Ioo t ht
-    have hL : expNegInvGlue (denom_fn t) = Real.exp (-1 / (t * (1 - t))) := by
-        have hExp : expNegInvGlue (denom_fn t) = Real.exp (-(denom_fn t)⁻¹) := by
-            simp [expNegInvGlue, not_le.mpr hpos]
-        rw [hExp, denom_fn, div_eq_mul_inv, neg_mul, one_mul]
-    have hR : Set.indicator (Set.Ioo (0:ℝ) 1) bump_core t = Real.exp (-1 / (t * (1 - t))) := by
-        simp [Set.indicator_of_mem ht, bump_core, denom_fn]
-    exact hL.trans hR.symm
-  · have hnonpos : denom_fn t ≤ 0 := by
-      have hcases : t ≤ 0 ∨ 1 ≤ t := by
-          have : ¬ (0 < t ∧ t < 1) := by simpa [Set.mem_Ioo] using ht
-          rcases not_and_or.mp this with hnot0 | hnot1
-          · exact Or.inl (le_of_not_gt hnot0)
-          · exact Or.inr (le_of_not_gt hnot1)
-      cases hcases with
-      | inl hle0 =>
-          exact mul_nonpos_of_nonpos_of_nonneg hle0
-              (sub_nonneg.mpr (le_trans hle0 (by norm_num)))
-      | inr h1le =>
-          exact mul_nonpos_of_nonneg_of_nonpos
-              (le_trans (show (0:ℝ) ≤ 1 by norm_num) h1le)
-              (sub_nonpos.mpr h1le)
+  · have h₁ : expNegInvGlue (denom_fn t) = Real.exp (-(denom_fn t)⁻¹) := by
+      simp [expNegInvGlue, not_le.mpr (denom_pos_on_Ioo t ht)]
+    have h₂ : Real.exp (-(denom_fn t)⁻¹) = Real.exp (-1 / (t * (1 - t))) := by
+      simp [denom_fn, div_eq_mul_inv, neg_mul, one_mul]
+    have h := h₁.trans h₂
+    simpa [Set.indicator_of_mem ht, bump_core] using h
+  · have hnonpos : denom_fn t ≤ 0 := denom_nonpos_of_not_mem_Ioo ht
     simp [expNegInvGlue.zero_of_nonpos hnonpos, Set.indicator_of_notMem ht]
 
 def G (t : ℝ) : ℝ := expNegInvGlue (denom_fn t)
@@ -167,71 +166,97 @@ lemma G_is_C_inf : ContDiffOn ℝ ∞ G unitInterval := by
 
 def F_num (z : ℝ) : ℝ := ∫ t in Set.uIoc 0 z, G t
 
-lemma F_num_is_C_inf : ContDiffOn ℝ ∞ F_num unitInterval := by
+open MeasureTheory
+
+-- Helper: the primitive z ↦ ∫_{0..z} f is C^∞ on [0,1] if f is C^∞ on [0,1]
+private lemma primitive_is_C_inf_on_unitInterval
+  (f : ℝ → ℝ) (hfinf : ContDiffOn ℝ ∞ f unitInterval) :
+  ContDiffOn ℝ ∞ (fun z => ∫ t in (0)..z, f t) unitInterval := by
   classical
-  let P : ℝ → ℝ := fun z => ∫ t in (0)..z, G t
-  have hcont : ContinuousOn G (Set.Icc 0 1) := G_is_C_inf.continuousOn
-  have h_deriv_within : ∀ x ∈ unitInterval, HasDerivWithinAt P (G x) unitInterval x := by
+  -- FTC within [0,1]
+  have h_deriv_within : ∀ x ∈ unitInterval,
+      HasDerivWithinAt (fun z => ∫ t in (0)..z, f t) (f x) unitInterval x := by
     intro x hx
     have hx0 : (0 : ℝ) ≤ x := hx.1
-    have hint : IntervalIntegrable G MeasureTheory.volume 0 x := by
-      have hcont' : ContinuousOn G (Set.Icc 0 x) := hcont.mono (Set.Icc_subset_Icc le_rfl hx.2)
+    have hint : IntervalIntegrable f volume 0 x := by
+      have hcont' : ContinuousOn f (Set.Icc 0 x) :=
+        hfinf.continuousOn.mono (Set.Icc_subset_Icc le_rfl hx.2)
       simpa using
-      (ContinuousOn.intervalIntegrable_of_Icc (μ := MeasureTheory.volume)
-        (u := G) (a := 0) (b := x) (h := hx0) hcont')
-    -- within-set FTC filter on `Icc 0 1`
+        (ContinuousOn.intervalIntegrable_of_Icc (μ := volume)
+          (u := f) (a := 0) (b := x) (h := hx0) hcont')
     haveI : Fact (x ∈ Set.Icc (0 : ℝ) 1) := ⟨hx.1, hx.2⟩
     haveI : intervalIntegral.FTCFilter x (𝓝[unitInterval] x) (𝓝[unitInterval] x) := by
-      -- Use the instance for `𝓝[Set.Icc a b]` specialized to `a=0`, `b=1`.
       simpa [unitInterval] using
-      (inferInstance : intervalIntegral.FTCFilter x (𝓝[Set.Icc (0 : ℝ) 1] x)
-      (𝓝[Set.Icc (0 : ℝ) 1] x))
-    have hmeas : StronglyMeasurableAtFilter G (𝓝[unitInterval] x) MeasureTheory.volume := by
+        (inferInstance : intervalIntegral.FTCFilter x (𝓝[Set.Icc (0 : ℝ) 1] x)
+          (𝓝[Set.Icc (0 : ℝ) 1] x))
+    have hmeas : StronglyMeasurableAtFilter f (𝓝[unitInterval] x) volume := by
       have hmeasSet : MeasurableSet unitInterval := by
         simp [unitInterval, isClosed_Icc.measurableSet]
-      exact hcont.stronglyMeasurableAtFilter_nhdsWithin (hs := hmeasSet) x
-    have hcontWithin : ContinuousWithinAt G unitInterval x := hcont.continuousWithinAt hx
-    simpa [P] using
+      exact hfinf.continuousOn.stronglyMeasurableAtFilter_nhdsWithin (hs := hmeasSet) x
+    simpa using
       (intervalIntegral.integral_hasDerivWithinAt_right (a := 0) (b := x)
-      (f := G) hint hmeas hcontWithin)
+        (f := f) hint hmeas (hfinf.continuousOn.continuousWithinAt hx))
+  -- Unique differentiability on [0,1]
   have hUD : UniqueDiffOn ℝ unitInterval := by
     simpa [unitInterval] using uniqueDiffOn_Icc_zero_one
-  have h_diff : DifferentiableOn ℝ P unitInterval :=
+  -- Differentiate-within ⇒ differentiable-within
+  have h_diff : DifferentiableOn ℝ (fun z => ∫ t in (0)..z, f t) unitInterval :=
     fun x hx => (h_deriv_within x hx).differentiableWithinAt
-  have h_deriv_eq : ∀ x ∈ unitInterval, derivWithin P unitInterval x = G x := by
+  -- The within derivative equals f
+  have h_deriv_eq : ∀ x ∈ unitInterval,
+      derivWithin (fun z => ∫ t in (0)..z, f t) unitInterval x = f x := by
     intro x hx
     have hsx : UniqueDiffWithinAt ℝ unitInterval x := by
       simpa [unitInterval] using (uniqueDiffOn_Icc_zero_one x ⟨hx.1, hx.2⟩)
     simpa using (HasDerivWithinAt.derivWithin (h_deriv_within x hx) hsx)
-  have hP : ContDiffOn ℝ ∞ P unitInterval := by
-    have := (contDiffOn_infty_iff_derivWithin (𝕜 := ℝ) (s₂ := unitInterval) (f₂ := P) hUD)
-    refine this.mpr ?_
-    refine And.intro h_diff ?_
-    exact (contDiffOn_congr (s := unitInterval)
-      (f₁ := derivWithin P unitInterval) (f := G) h_deriv_eq).mpr G_is_C_inf
+  -- Apply the C^∞-criterion via within-derivatives
+  have hC : ContDiffOn ℝ ∞
+      (fun z => derivWithin (fun z => ∫ t in (0)..z, f t) unitInterval z)
+      unitInterval :=
+    (contDiffOn_congr (s := unitInterval)
+      (f₁ := fun z => derivWithin (fun z => ∫ t in (0)..z, f t) unitInterval z)
+      (f := f) h_deriv_eq).mpr hfinf
+  have hcrit := (contDiffOn_infty_iff_derivWithin (𝕜 := ℝ)
+    (s₂ := unitInterval) (f₂ := fun z => ∫ t in (0)..z, f t) hUD)
+  exact hcrit.mpr ⟨h_diff, hC⟩
+
+-- Helper: rewrite uIoc integral as intervalIntegral on [0,1]
+private lemma uIoc_to_intervalIntegral_on_unit
+  (f : ℝ → ℝ) {z : ℝ} (hz : z ∈ unitInterval) :
+  (∫ t in Set.uIoc 0 z, f t) = ∫ t in (0)..z, f t := by
+  have hz0 : (0 : ℝ) ≤ z := hz.1
+  -- intervalIntegral gives ∫(0..z) = ∫_{Ioc 0 z}
+  have h := (intervalIntegral.integral_of_le (μ := volume)
+    (f := f) (a := (0 : ℝ)) (b := z) hz0)
+  -- rewrite uIoc to Ioc using 0 ≤ z, then flip sides
+  simpa [Set.uIoc, hz0] using h.symm
+
+lemma F_num_is_C_inf : ContDiffOn ℝ ∞ F_num unitInterval := by
+  classical
+  let P : ℝ → ℝ := fun z => ∫ t in (0)..z, G t
+  -- P is the primitive of G on (0)..z
+  have hP : ContDiffOn ℝ ∞ P unitInterval :=
+    primitive_is_C_inf_on_unitInterval G G_is_C_inf
+  -- F_num agrees with P on [0,1]
   have h_congr_PI : ∀ z ∈ unitInterval, F_num z = P z := by
     intro z hz
-    have hz0 : (0 : ℝ) ≤ z := hz.1
-    have : ∫ t in (0)..z, G t = ∫ t in Set.Ioc 0 z, G t := by
-      simpa using
-      (intervalIntegral.integral_of_le (μ := MeasureTheory.volume)
-      (f := G) (a := (0 : ℝ)) (b := z) hz0)
-    simp [F_num, P, Set.uIoc, hz0, this]
+    simpa [F_num, P] using (uIoc_to_intervalIntegral_on_unit G hz)
+  -- Transfer C^∞ from P to F_num using equality on [0,1]
   exact (contDiffOn_congr (s := unitInterval) (f₁ := F_num) (f := P) h_congr_PI).mpr hP
 
 def F_den : ℝ := ∫ t in Set.uIoc 0 1, G t
 
 lemma F_den_pos : 0 < F_den := by
-  have hfi : IntervalIntegrable G MeasureTheory.volume 0 1 := by
-    simpa using (ContinuousOn.intervalIntegrable_of_Icc (μ := MeasureTheory.volume)
+  have hfi : IntervalIntegrable G volume 0 1 := by
+    simpa using (ContinuousOn.intervalIntegrable_of_Icc (μ := volume)
       (u := G) (a := 0) (b := 1) (h := by norm_num) G_is_C_inf.continuousOn)
   have hpos : ∀ x : ℝ, x ∈ Set.Ioo 0 1 → 0 < G x := by
     intro x hx
-    exact expNegInvGlue.pos_of_pos (denom_nonzero_on_Ioo x hx)
+    exact expNegInvGlue.pos_of_pos (denom_pos_on_Ioo x hx)
   have hposI' : 0 < ∫ x in (0)..(1), G x :=
     intervalIntegral.intervalIntegral_pos_of_pos_on (a:=0) (b:=1) (f:=G) hfi hpos (by norm_num)
   have hposI : 0 < ∫ x in Set.Ioc 0 1, G x := by
-    simpa [intervalIntegral.integral_of_le (μ := MeasureTheory.volume)
+    simpa [intervalIntegral.integral_of_le (μ := volume)
       (f:=G) (a:=0) (b:=1) (by norm_num : (0:ℝ) ≤ 1)] using hposI'
   simpa [F_den, Set.uIoc, le_rfl] using hposI
 
@@ -241,7 +266,7 @@ lemma F_den_ne_0 : F_den ≠ 0 := by
 def F (z : ℝ) : ℝ :=
   if z ≤ 0 then 0
   else if 1 ≤ z then 1
-  else F_num z / F_den
+  else (F_num z / F_den)
 
 lemma F_eq_ratio_on_unit {z : ℝ} (hz : z ∈ unitInterval) :
   F z = F_num z / F_den := by
@@ -251,38 +276,25 @@ lemma F_eq_ratio_on_unit {z : ℝ} (hz : z ∈ unitInterval) :
     simp [F, F_num, F_den, Set.uIoc, le_rfl]
   by_cases h1 : z = 1
   · subst h1
-    have hden_ne : F_den ≠ 0 := ne_of_gt F_den_pos
-    have hI : (∫ t in Set.Ioc 0 1, G t) = F_den := by
-        simp [F_den, Set.uIoc, le_rfl]
     have hnum : F_num 1 = F_den := by
-        simpa [F_num, Set.uIoc, le_rfl] using hI
-    simp [F, le_rfl, hnum, hden_ne]
+      simp [F_num, F_den, Set.uIoc, le_rfl]
+    simp [F, le_rfl, hnum, F_den_ne_0]
   simp [F, not_le.mpr (lt_of_le_of_ne hz0 (by simpa [eq_comm] using h0)),
     not_le.mpr (lt_of_le_of_ne hz1 (by simpa using h1))]
 
-lemma G_NeZero : NeZero (fun (t : ℝ) => G t) := by
-  refine ⟨by
-    intro hzero
-    have hx : (1 / 2 : ℝ) ∈ unitInterval := by constructor <;> norm_num
-    have hIoo : (1 / 2 : ℝ) ∈ Set.Ioo 0 1 := by constructor <;> norm_num
-    have hden_pos : 0 < denom_fn (1 / 2 : ℝ) := denom_nonzero_on_Ioo _ hIoo
-    have hGeq : G (1 / 2 : ℝ) = expNegInvGlue (denom_fn (1 / 2)) :=
-      by exact rfl
-    have hposE : 0 < expNegInvGlue (denom_fn (1 / 2 : ℝ)) :=
-      expNegInvGlue.pos_of_pos hden_pos
-    have hGzero : G (1 / 2 : ℝ) = 0 := by
-      simpa using congrArg (fun f => f (1 / 2 : ℝ)) hzero
-    have : expNegInvGlue (denom_fn (1 / 2 : ℝ)) = 0 := by
-      rw [← hGeq]
-      exact hGzero
-    exact (ne_of_gt hposE) this⟩
+lemma G_NeZero : (fun (t : ℝ) => G t) ≠ 0 := by
+  intro hzero
+  have hIoo : (1 / 2 : ℝ) ∈ Set.Ioo 0 1 := by constructor <;> norm_num
+  have hpos : 0 < G (1 / 2 : ℝ) := by
+    simpa [G] using
+    (expNegInvGlue.pos_of_pos (denom_pos_on_Ioo _ hIoo))
+  exact (ne_of_gt hpos) (by simpa using congrArg (fun f => f (1 / 2 : ℝ)) hzero)
 
 -- F is C^∞ continuous on [0, 1]
 lemma F_is_C_inf : ContDiffOn ℝ ∞ F unitInterval := by
-  have h_congr : ∀ x ∈ unitInterval, F x = (fun x => F_num x / F_den) x := by
-    intro x hx; simpa using F_eq_ratio_on_unit hx
   exact (contDiffOn_congr (s := unitInterval) (f₁ := F)
-    (f := fun x => F_num x / F_den) h_congr).mpr
+    (f := fun x => F_num x / F_den)
+    (by intro x hx; simpa using F_eq_ratio_on_unit hx)).mpr
     (ContDiffOn.div_const F_num_is_C_inf F_den)
 
 def κ_smooth (s R L) :=
@@ -296,9 +308,7 @@ lemma κ_smooth_at_zero : κ_smooth 0 R L = 0 := by
   simp [κ_smooth, Real.smoothTransition.zero]
 
 lemma κ_smooth_at_L (hL : L ≠ 0) : κ_smooth L R L = R := by
-  have : L / L = (1 : ℝ) := by
-    simpa using (div_self hL)
-  simp [κ_smooth, this, Real.smoothTransition.one]
+  simp [κ_smooth, div_self hL, Real.smoothTransition.one]
 
 def κ (s R L : ℝ) : ℝ :=
   R * F (s / L)
@@ -306,24 +316,21 @@ def κ (s R L : ℝ) : ℝ :=
 -- My curvature function is C^∞ continuous on [0, 1]
 theorem κ_is_C_inf_on_Icc (R L : ℝ) (hL : 0 < L) :
   ContDiffOn ℝ ∞ (fun s => κ s R L) (Set.Icc 0 L) := by
-    -- compose with F which is C^∞ on [0,1]
-  have h_comp : ContDiffOn ℝ ∞ (fun s : ℝ => F (s / L)) (Set.Icc 0 L) := by
-    refine (F_is_C_inf.comp (contDiffOn_id.div_const (c := L)) ?maps)
-    -- show s/L maps [0,L] into [0,1]
-    intro s hs
-    rcases hs with ⟨hs0, hsL⟩
-    exact ⟨div_nonneg hs0 (le_of_lt hL),
-      by simpa [div_self (ne_of_gt hL)] using
-      div_le_div_of_nonneg_right hsL (le_of_lt hL)⟩
-  simpa [κ] using (contDiffOn_const.mul h_comp)
+  simpa [κ] using
+    (contDiffOn_const.mul ((F_is_C_inf.comp (contDiffOn_id.div_const (c := L))
+      (by
+        intro s hs
+        rcases hs with ⟨hs0, hsL⟩
+        exact ⟨div_nonneg hs0 (le_of_lt hL),
+        by simpa [div_self (ne_of_gt hL)] using div_le_div_of_nonneg_right hsL (le_of_lt hL)⟩
+      )
+    )))
 
 theorem κ_at_zero : κ 0 R L = 0 := by
   simp [κ, F]
 
 theorem κ_at_L (hL : L ≠ 0) : κ L R L = R := by
-  have : L / L = (1 : ℝ) := by
-    simpa using (div_self hL)
-  simp [κ, F, this]
+  simp [κ, F, div_self hL]
 
 end smoothstep_curve_1
 
