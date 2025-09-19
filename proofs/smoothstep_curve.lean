@@ -44,6 +44,7 @@ import Mathlib.Analysis.SpecialFunctions.SmoothTransition
 import Mathlib.Analysis.SpecialFunctions.Exp
 import Mathlib.Data.Real.Basic
 import Mathlib.Data.Set.Defs
+import Mathlib.Order.Basic
 import Mathlib.MeasureTheory.Integral.IntervalIntegral.Basic
 import Mathlib.MeasureTheory.Integral.IntervalIntegral.FundThmCalculus
 import Mathlib.Analysis.Calculus.BumpFunction.Basic
@@ -138,6 +139,55 @@ lemma FDen_pos
   exact hposI
 
 
+lemma FNum_monotone_on_unit
+  {G : ℝ → ℝ} (hG : ContDiffOn ℝ ∞ G unitInterval)
+  (hpos : ∀ x ∈ Set.Ioo 0 1, 0 < G x) :
+  MonotoneOn (FNum G) unitInterval := by
+  intro x hx y hy hxy
+  classical
+  by_cases hxy_eq : x = y
+  · subst hxy_eq; exact le_rfl
+  · have hlt : x < y := lt_of_le_of_ne hxy hxy_eq
+    -- continuity on [x,y] ensures interval integrable
+    have hcont_xy : ContinuousOn G (Set.Icc x y) :=
+      hG.continuousOn.mono (by
+        intro t ht; exact ⟨le_trans hx.1 ht.1, le_trans ht.2 hy.2⟩)
+    have hint_xy : IntervalIntegrable G volume x y :=
+      hcont_xy.intervalIntegrable_of_Icc (μ := volume) (a := x) (b := y) hlt.le
+    -- positivity on (x,y)
+    have hpos_xy : ∀ t ∈ Set.Ioo x y, 0 < G t := by
+      intro t ht
+      have ht0 : 0 < t := lt_of_le_of_lt hx.1 ht.1
+      have ht1 : t < 1 := lt_of_lt_of_le ht.2 hy.2
+      exact hpos t ⟨ht0, ht1⟩
+    -- additivity of integral from 0..y = 0..x + x..y
+    have hadd : (∫ t in (0)..x, G t) + (∫ t in (x)..y, G t) = (∫ t in (0)..y, G t) := by
+      have hcont0x : ContinuousOn G (Set.Icc 0 x) :=
+        hG.continuousOn.mono (Set.Icc_subset_Icc le_rfl hx.2)
+      have h0x : IntervalIntegrable G volume 0 x :=
+        hcont0x.intervalIntegrable_of_Icc (μ := volume) (a := 0) (b := x) hx.1
+      have hxy' : IntervalIntegrable G volume x y := hint_xy
+      simpa using
+        (intervalIntegral.integral_add_adjacent_intervals (μ := volume)
+          (f := G) (a := 0) (b := x) (c := y) h0x hxy')
+    -- identify with FNum
+    have hxInt : (∫ t in (0)..x, G t) = FNum G x := by
+      simpa [FNum] using (uIoc_to_intervalIntegral G hx).symm
+    have hyInt : (∫ t in (0)..y, G t) = FNum G y := by
+      simpa [FNum] using (uIoc_to_intervalIntegral G hy).symm
+    -- nonneg increment over [x,y]
+    have hinc_nonneg : 0 ≤ ∫ t in (x)..y, G t := by
+      have hpos_int : 0 < ∫ t in (x)..y, G t :=
+        intervalIntegral.intervalIntegral_pos_of_pos_on (a := x) (b := y) (f := G)
+          hint_xy hpos_xy hlt
+      exact hpos_int.le
+    -- conclude
+    have hadd' : FNum G x + ∫ t in (x)..y, G t = FNum G y := by
+      simpa [hxInt, hyInt] using hadd
+    have hx_le_sum : FNum G x ≤ FNum G x + ∫ t in (x)..y, G t :=
+      le_add_of_nonneg_right hinc_nonneg
+    simpa [hadd'] using hx_le_sum
+
 lemma F_eq_ratio_on_unit {G : ℝ → ℝ} {z : ℝ} (hz : z ∈ unitInterval)
   (hden : FDen G ≠ 0) : F G z = FNum G z / FDen G := by
   rcases hz with ⟨hz0, hz1⟩
@@ -150,6 +200,18 @@ lemma F_eq_ratio_on_unit {G : ℝ → ℝ} {z : ℝ} (hz : z ∈ unitInterval)
     simp [F, FNum, FDen, Set.uIoc, hdenIoc]
   simp [F, not_le.mpr (lt_of_le_of_ne hz0 (by simpa [eq_comm] using h0)),
     not_le.mpr (lt_of_le_of_ne hz1 (by simpa using h1))]
+
+lemma F_monotone_on_unit
+  {G : ℝ → ℝ} (hG : ContDiffOn ℝ ∞ G unitInterval)
+  (hpos : ∀ x ∈ Set.Ioo 0 1, 0 < G x) (hden : 0 < FDen G) :
+  MonotoneOn (F G) unitInterval := by
+  intro x hx y hy hxy
+  have hxF : F G x = FNum G x / FDen G := F_eq_ratio_on_unit (G := G) hx hden.ne'
+  have hyF : F G y = FNum G y / FDen G := F_eq_ratio_on_unit (G := G) hy hden.ne'
+  have hFNum_mono : FNum G x ≤ FNum G y :=
+    FNum_monotone_on_unit hG hpos hx hy hxy
+  have := div_le_div_of_nonneg_right hFNum_mono hden.le
+  simpa [hxF, hyF] using this
 
 lemma F_contDiffOn
   {G : ℝ → ℝ} (hG : ContDiffOn ℝ ∞ G unitInterval) (hden : FDen G ≠ 0) :
@@ -189,6 +251,11 @@ structure SmoothstepCurve where
   κ_is_C_inf : ∀ R L (_ : 0 < L), ContDiffOn ℝ ∞ (fun s => κ s R L) (Set.Icc 0 L)
   κ_at_zero : ∀ R L, κ 0 R L = 0
   κ_at_L : ∀ R L (_ : L ≠ 0), κ L R L = R
+  /-- Monotonicity of the normalized smoothstep on [0,1]. -/
+  F_monotone_on_unit : MonotoneOn F unitInterval
+  /-- For nonnegative `R`, κ(·, R, L) is monotone on [0,L]. -/
+  κ_monotone_on_Icc : ∀ R L (_ : 0 < L) (_ : 0 ≤ R),
+    MonotoneOn (fun s => κ s R L) (Set.Icc 0 L)
 
 def mkSmoothstepCurve (G : ℝ → ℝ) (hG : ContDiffOn ℝ ∞ G unitInterval)
   (hpos : ∀ x ∈ Set.Ioo 0 1, 0 < G x) : SmoothstepCurve :=
@@ -201,7 +268,29 @@ def mkSmoothstepCurve (G : ℝ → ℝ) (hG : ContDiffOn ℝ ∞ G unitInterval)
     F_is_C_inf := F_contDiffOn hG hden.ne',
     κ_is_C_inf := fun R L hL => kappa_contDiffOn hG hden.ne' R L hL,
     κ_at_zero := fun R L => by simp [kappa, F],
-    κ_at_L := fun R L hL => by simp [kappa, F, div_self hL]
+    κ_at_L := fun R L hL => by simp [kappa, F, div_self hL],
+    F_monotone_on_unit := by
+      exact F_monotone_on_unit hG hpos hden,
+    κ_monotone_on_Icc := by
+      intro R L hL hR x hx y hy hxy
+      -- map to unit interval
+      have hxmap : x / L ∈ unitInterval := by
+        rcases hx with ⟨hx0, hxL⟩
+        exact ⟨div_nonneg hx0 (le_of_lt hL), by
+          have hLne : L ≠ 0 := ne_of_gt hL
+          simpa [div_self hLne] using div_le_div_of_nonneg_right hxL (le_of_lt hL)⟩
+      have hymap : y / L ∈ unitInterval := by
+        rcases hy with ⟨hy0, hyL⟩
+        exact ⟨div_nonneg hy0 (le_of_lt hL), by
+          have hLne : L ≠ 0 := ne_of_gt hL
+          simpa [div_self hLne] using div_le_div_of_nonneg_right hyL (le_of_lt hL)⟩
+      have hxy_div : x / L ≤ y / L := div_le_div_of_nonneg_right hxy (le_of_lt hL)
+      -- monotonicity of F on [0,1]
+      have hFmono : MonotoneOn (F G) unitInterval :=
+        F_monotone_on_unit hG hpos hden
+      have hcmp := hFmono hxmap hymap hxy_div
+      -- scale by nonnegative R
+      simpa [kappa] using mul_le_mul_of_nonneg_left hcmp hR
   }
 
 /-- Helper to create smoothstep curve from any denominator function -/
