@@ -62,11 +62,11 @@ The following definitions and lemmas establish the mathematical foundation for c
 smoothstep curves from any C^∞ bump function G on [0,1].
 -/
 
-/-- The standard primitive from 0: z ↦ ∫ t in (0)..z, f t. -/
+-- The standard primitive from 0: z ↦ ∫ t in (0)..z, f t.
 def primitiveFromZero (f : ℝ → ℝ) : ℝ → ℝ :=
   fun z => ∫ t in (0)..z, f t
 
-/-- Fundamental result: the primitive z ↦ ∫_{0..z} f is C^∞ on [0,1] if f is C^∞ on [0,1] -/
+-- Fundamental result: the primitive z ↦ ∫_{0..z} f is C^∞ on [0,1] if f is C^∞ on [0,1]
 lemma primitive_is_C_inf_on_unitInterval
   (f : ℝ → ℝ) (hfinf : ContDiffOn ℝ ∞ f unitInterval) :
   ContDiffOn ℝ ∞ (primitiveFromZero f) unitInterval := by
@@ -93,7 +93,7 @@ lemma primitive_is_C_inf_on_unitInterval
   exact (contDiffOn_infty_iff_derivWithin uniqueDiffOn_Icc_zero_one).mpr
     ⟨h_diff, (contDiffOn_congr h_deriv_eq).mpr hfinf⟩
 
-/-- Helper: convert uIoc integral to intervalIntegral -/
+-- Helper: convert uIoc integral to intervalIntegral
 lemma uIoc_to_intervalIntegral (f : ℝ → ℝ) {z : ℝ} (hz : z ∈ unitInterval) :
   (∫ t in Set.uIoc 0 z, f t) = ∫ t in (0)..z, f t := by
   simpa [Set.uIoc, hz.1] using (intervalIntegral.integral_of_le (μ := volume) (f := f) (a := 0) (b := z) hz.1).symm
@@ -108,13 +108,13 @@ lemma uIoc_to_intervalIntegral_one (f : ℝ → ℝ) :
 
 namespace Smooth
 
-/-- Numerator of the normalized integral: ∫₀ᶻ G(t) dt -/
+-- Numerator of the normalized integral: ∫₀ᶻ G(t) dt
 def FNum (G : ℝ → ℝ) (z : ℝ) : ℝ := ∫ t in Set.uIoc 0 z, G t
 
-/-- Denominator of the normalized integral: ∫₀¹ G(t) dt -/
+-- Denominator of the normalized integral: ∫₀¹ G(t) dt
 def FDen (G : ℝ → ℝ) : ℝ := ∫ t in Set.uIoc 0 1, G t
 
-/-- The normalized smoothstep function F(z) = FNum(z) / FDen -/
+-- The normalized smoothstep function F(z) = FNum(z) / FDen
 def F (G : ℝ → ℝ) (z : ℝ) : ℝ :=
   if z ≤ 0 then 0 else if 1 ≤ z then 1 else FNum G z / FDen G
 
@@ -221,7 +221,7 @@ lemma F_contDiffOn
     ContDiffOn.div_const hNum (FDen G)
   exact (contDiffOn_congr (fun x hx => F_eq_ratio_on_unit hx hden)).mpr h
 
-/-- The curvature function κ(s) = R · F(s/L) -/
+-- The curvature function κ(s) = R · F(s/L)
 def kappa (G : ℝ → ℝ) (s R L : ℝ) : ℝ := R * F G (s / L)
 
 lemma kappa_contDiffOn
@@ -251,9 +251,9 @@ structure SmoothstepCurve where
   κ_is_C_inf : ∀ R L (_ : 0 < L), ContDiffOn ℝ ∞ (fun s => κ s R L) (Set.Icc 0 L)
   κ_at_zero : ∀ R L, κ 0 R L = 0
   κ_at_L : ∀ R L (_ : L ≠ 0), κ L R L = R
-  /-- Monotonicity of the normalized smoothstep on [0,1]. -/
+  -- Monotonicity of the normalized smoothstep on [0,1].
   F_monotone_on_unit : MonotoneOn F unitInterval
-  /-- For nonnegative `R`, κ(·, R, L) is monotone on [0,L]. -/
+  -- For nonnegative `R`, κ(·, R, L) is monotone on [0,L].
   κ_monotone_on_Icc : ∀ R L (_ : 0 < L) (_ : 0 ≤ R),
     MonotoneOn (fun s => κ s R L) (Set.Icc 0 L)
 
@@ -293,7 +293,7 @@ def mkSmoothstepCurve (G : ℝ → ℝ) (hG : ContDiffOn ℝ ∞ G unitInterval)
       simpa [kappa] using mul_le_mul_of_nonneg_left hcmp hR
   }
 
-/-- Helper to create smoothstep curve from any denominator function -/
+-- Helper to create smoothstep curve from any denominator function
 def mkSmoothstepCurveFromDenom (denom : ℝ → ℝ) (hdenom_contDiff : ContDiff ℝ ∞ denom)
   (hdenom_pos : ∀ x ∈ Set.Ioo 0 1, 0 < denom x) : SmoothstepCurve :=
   let G := fun t => expNegInvGlue (denom t)
@@ -326,7 +326,7 @@ open Smooth MeasureTheory
 Uses expNegInvGlue function from Mathlib for proper boundary conditions.
 -/
 
-/-- The denominator function t(1-t) for the bump function -/
+-- The denominator function t(1-t) for the bump function
 def denom_fn (t : ℝ) : ℝ := t * (1 - t)
 
 lemma denom_contDiff : ContDiff ℝ ∞ denom_fn :=
@@ -336,31 +336,30 @@ lemma denom_pos_on_Ioo (t : ℝ) (ht : t ∈ Set.Ioo 0 1) : 0 < denom_fn t := by
   rcases ht with ⟨ht0, ht1⟩
   exact mul_pos ht0 (sub_pos.mpr ht1)
 
-/-
-### Construction and Main Results
--/
 
-/-- The first smoothstep curve using the standard bump function -/
+-- ### Construction and Main Results
+
+-- The first smoothstep curve using the standard bump function
 def curve1 := mkSmoothstepCurveFromDenom denom_fn denom_contDiff denom_pos_on_Ioo
 
-/-- The normalized smoothstep function for curve 1 -/
-def F1 : ℝ → ℝ := curve1.F
+-- The normalized smoothstep function for curve 1
+def F₁ : ℝ → ℝ := curve1.F
 
-/-- The curvature function for curve 1 -/
-def κ (s R L : ℝ) : ℝ := curve1.κ s R L
+-- The curvature function for curve 1
+def κ₁ (s R L : ℝ) : ℝ := curve1.κ s R L
 
-/-- Main theorem: F1 is infinitely differentiable on [0,1] -/
-theorem F1_is_C_inf : ContDiffOn ℝ ∞ F1 unitInterval := curve1.F_is_C_inf
+-- Main theorem: F1 is infinitely differentiable on [0,1]
+theorem F₁_is_C_inf : ContDiffOn ℝ ∞ F₁ unitInterval := curve1.F_is_C_inf
 
-/-- Main theorem: κ is infinitely differentiable on [0,L] -/
-theorem κ_is_C_inf_on_Icc (R L : ℝ) (hL : 0 < L) :
-  ContDiffOn ℝ ∞ (fun s => κ s R L) (Set.Icc 0 L) := curve1.κ_is_C_inf R L hL
+-- Main theorem: κ is infinitely differentiable on [0,L]
+theorem κ₁_is_C_inf_on_Icc (R L : ℝ) (hL : 0 < L) :
+  ContDiffOn ℝ ∞ (fun s => κ₁ s R L) (Set.Icc 0 L) := curve1.κ_is_C_inf R L hL
 
-/-- Boundary condition: κ(0) = 0 -/
-theorem κ_at_zero : κ 0 R L = 0 := curve1.κ_at_zero R L
+-- Boundary condition: κ(0) = 0
+theorem κ₁_at_zero : κ₁ 0 R L = 0 := curve1.κ_at_zero R L
 
-/-- Boundary condition: κ(L) = R -/
-theorem κ_at_L (hL : L ≠ 0) : κ L R L = R := curve1.κ_at_L R L hL
+-- Boundary condition: κ(L) = R
+theorem κ₁_at_L (hL : L ≠ 0) : κ₁ L R L = R := curve1.κ_at_L R L hL
 
 end SmoothstepCurve1
 
@@ -385,13 +384,13 @@ open Smooth MeasureTheory
 Uses expNegInvGlue with denominator function 1-(t-1)².
 -/
 
-/-- The denominator function 1-(t-1)² for the improved bump function -/
+-- The denominator function 1-(t-1)² for the improved bump function
 def denom2 (t : ℝ) : ℝ := 1 - (t - 1)^2
 
 lemma denom2_contDiff : ContDiff ℝ ∞ denom2 :=
   contDiff_const.sub ((contDiff_id.sub contDiff_const).pow 2)
 
-/-- Positivity of denom2 on (0,1): 1-(t-1)² > 0 when t ∈ (0,1) -/
+-- Positivity of denom2 on (0,1): 1-(t-1)² > 0 when t ∈ (0,1)
 lemma denom2_pos_on_Ioo (x : ℝ) (hx : x ∈ Set.Ioo 0 1) : 0 < denom2 x := by
   have habs : |x - 1| < 1 := by
     have h1 : -1 < x - 1 := by linarith [hx.1]
@@ -403,30 +402,28 @@ lemma denom2_pos_on_Ioo (x : ℝ) (hx : x ∈ Set.Ioo 0 1) : 0 < denom2 x := by
   have : 1 - (x - 1)^2 > 0 := sub_pos.mpr hsq
   simpa [denom2] using this
 
-/-
-### Construction and Main Results
--/
+-- ### Construction and Main Results
 
-/-- The second smoothstep curve using the improved bump function -/
+-- The second smoothstep curve using the improved bump function
 def curve2 := mkSmoothstepCurveFromDenom denom2 denom2_contDiff denom2_pos_on_Ioo
 
-/-- The normalized smoothstep function for curve 2 -/
-def F2 : ℝ → ℝ := curve2.F
+-- The normalized smoothstep function for curve 2
+def F₂ : ℝ → ℝ := curve2.F
 
-/-- The curvature function for curve 2 -/
+-- The curvature function for curve 2
 def κ₂ (s R L : ℝ) : ℝ := curve2.κ s R L
 
-/-- Main theorem: F2 is infinitely differentiable on [0,1] -/
-theorem F2_is_C_inf : ContDiffOn ℝ ∞ F2 unitInterval := curve2.F_is_C_inf
+-- Main theorem: F₂ is infinitely differentiable on [0,1]
+theorem F₂_is_C_inf : ContDiffOn ℝ ∞ F₂ unitInterval := curve2.F_is_C_inf
 
-/-- Main theorem: κ₂ is infinitely differentiable on [0,L] -/
+-- Main theorem: κ₂ is infinitely differentiable on [0,L]
 theorem κ₂_is_C_inf_on_Icc (R L : ℝ) (hL : 0 < L) :
   ContDiffOn ℝ ∞ (fun s => κ₂ s R L) (Set.Icc 0 L) := curve2.κ_is_C_inf R L hL
 
-/-- Boundary condition: κ₂(0) = 0 -/
+-- Boundary condition: κ₂(0) = 0
 theorem κ₂_at_zero : κ₂ 0 R L = 0 := curve2.κ_at_zero R L
 
-/-- Boundary condition: κ₂(L) = R -/
+-- Boundary condition: κ₂(L) = R
 theorem κ₂_at_L (hL : L ≠ 0) : κ₂ L R L = R := curve2.κ_at_L R L hL
 
 end SmoothstepCurve2
