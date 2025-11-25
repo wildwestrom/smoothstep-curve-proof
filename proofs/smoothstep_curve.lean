@@ -1,105 +1,164 @@
 /-
 # Smoothstep Curves: Infinitely Differentiable Curvature Functions
 
-This file demonstrates the construction of smoothstep-based curvature functions
-that provide $G^\infty$ continuous transitions between segments of constant
-curvature (for example, between tangent lines and circular arcs).
-The property of being infinitely differentiable may prove to be useful for
-engineering applications.
+This file develops smoothstep-based curvature functions that provide
+`G^∞` continuous transitions between segments of constant curvature
+(for example, between tangent lines and circular arcs).
+
+The key design is fixed and permeates the entire development:
+
+* We **always parameterize transitions by a bump function `G`** supported in `(0,1)`.
+* The shape function `H` is *derived* — never assumed — as the normalized primitive of `G`.
+* Users stay in control of quantitative bounds (peak jerk, snap, …) by choosing the bump `G`
+  that best fits their application.  The API intentionally avoids a single “canonical” smoothstep.
+
+With this normalization the qualitative requirements on `H` (smooth, monotone, flat endpoints,
+normalized) become automatic consequences of the properties of `G`.
+
+We keep all constructions `C^∞` / `G^∞`-smooth; no finite-order relaxation
+is used anywhere.
 
 ## Mathematical Framework
 
-A smoothstep curve is defined by a curvature function $\kappa(s)$ that
-smoothly transitions from a start curvature $R_1$ to an end curvature
-$R_2$. A straight line corresponds to $R_i = 0$, and a circular arc
-corresponds to a nonzero constant curvature $R_i$ (with radius
-$1 / |R_i|$).
+A smoothstep curve is defined by a curvature function `κ(s)` that smoothly
+transitions from a start curvature `R₁` to an end curvature `R₂`:
 
-The key insight is to use a single "shape function" $H$ to create this
-transition, eliminating the need for intermediate bump functions and
-normalization integrals.
+* Straight line: `Rᵢ = 0`.
+* Circular arc: constant nonzero curvature `Rᵢ`, with radius `1 / |Rᵢ|`.
+
+We work with a **shape function** `H` derived from a bump `G`.  Conceptually:
+
+* Choose a nonnegative bump `G` supported in `(0,1)`, `C^∞`, with
+  `∫₀¹ G = 1`.
+* Define
+  ```
+  H(z) := ∫₀ᶻ G(t) dt,   for z ∈ [0,1].
+  ```
+* Then `H : [0,1] → [0,1]` is smooth, monotone, and flat at the endpoints.
+
+The implementation follows this viewpoint:
+
+* `HInt G z` is the primitive `∫₀ᶻ G`.
+* `HInt_denom G` is `∫₀¹ G`, used for normalization.
+* `H G z := HInt G (clampUnit z) / HInt_denom G` is the shape function
+  exposed by the API.
+* The curvature expression is given directly in terms of `H`.
+
+The user chooses `G` (bump shape) to control quantitative properties
+(e.g., max of `κ'`, `κ''`, …); the framework guarantees the qualitative
+properties (smoothness, flat joins, monotonic curvature change).
 
 ### General Form
 
 For a smoothstep curve with:
 
-- $s$ = arc length parameter with $0 \le s \le L$
-- $L$ = total length of the transition curve
-- $R_1$ = start curvature (constant curvature before the transition)
-- $R_2$ = end curvature (constant curvature after the transition)
-- $z = s/L \in [0,1]$ = normalized arc-length parameter
-- $\Delta R = R_2 - R_1$ = curvature change
+* `s`  = arc length parameter with `0 ≤ s ≤ L`
+* `L`  = total length of the transition curve
+* `R₁` = start curvature (constant before the transition)
+* `R₂` = end curvature (constant after the transition)
+* `z := s / L ∈ [0,1]` = normalized arc-length parameter
+* `ΔR := R₂ - R₁` = curvature change
 
-Define the curvature on the transition segment directly by
+we define the curvature on the transition segment by
 
-$$
-\kappa(s) = R_1 + \Delta R\,H\!\left(\frac{s}{L}\right),
-$$
+```math
+κ(s) = R₁ + ΔR · H(s / L),
+```
 
-where $H:[0,1]\to[0,1]$ is a "shape function" satisfying the conditions below.
+where `H : [0,1] → [0,1]` is the shape function constructed from `G` as
+above.
 
 The heading angle is
 
-$$
-\theta(s) = \int_0^s \kappa(v)\,dv
-          = R_1 s + \Delta R\,L \int_0^{s/L} H(u)\,du.
-$$
+```math
+θ(s) = ∫₀ˢ κ(v) dv
+     = R₁ s + ΔR · L ∫₀^{s/L} H(u) du.
+```
 
-The Cartesian coordinates (with arc length parametrization) are
+The Cartesian coordinates (arc length parametrization) are
 
-$$
-x(s) = \int_0^s \cos(\theta(v))\,dv, \quad
-y(s) = \int_0^s \sin(\theta(v))\,dv.
-$$
+```math
+x(s) = ∫₀ˢ cos(θ(v)) dv,
+y(s) = ∫₀ˢ sin(θ(v)) dv.
+```
 
-### Conditions on $H$
+### Conditions on `H`
 
-The shape function $H$ must satisfy:
+At the abstract level, we want a shape function
+`H : [0,1] → [0,1]` with:
 
 1. **Smoothness**:
-  $H \in C^\infty([0,1])$.
+   ```math
+   H ∈ C^∞([0,1]).
+   ```
 
 2. **Boundary values**:
-  $$
-  H(0) = 0, \quad H(1) = 1.
-  $$
+   ```math
+   H(0) = 0,  H(1) = 1.
+   ```
 
 3. **Monotonicity**:
-  $$
-  H'(z) \ge 0 \quad \text{for all } z \in [0,1].
-  $$
-  (Then if $\Delta R>0$, $\kappa$ increases; if $\Delta R<0$, $\kappa$ decreases.)
+   ```math
+   H'(z) ≥ 0  for all z ∈ [0,1].
+   ```
+   Then if `ΔR > 0`, curvature increases, and if `ΔR < 0`, curvature decreases.
 
 4. **Flatness at endpoints**:
-  $$
-  H^{(n)}(0) = H^{(n)}(1) = 0 \quad \text{for all } n \ge 1.
-  $$
-  Then, for $0 \le s \le L$,
-  $$
-  \kappa^{(n)}(s) = \Delta R\,L^{-n}\,H^{(n)}\!\left(\frac{s}{L}\right),
-  $$
-  so in particular
-  $$
-  \kappa^{(n)}(0) = \kappa^{(n)}(L) = 0 \quad \text{for all } n \ge 1.
-  $$
+   ```math
+   H^{(n)}(0) = H^{(n)}(1) = 0  for all n ≥ 1.
+   ```
 
-When $\kappa$ is extended by constants $R_1$ for $s < 0$ and $R_2$ for $s > L$,
-this yields a $C^\infty$ curvature function globally, with all derivatives
-matching at $s=0$ and $s=L$ (i.e., $G^\infty$ at the joins). This matches
-the fact that circular arcs and straight tangents have constant curvature,
-so all of their curvature derivatives (of order $\ge 1$) are zero.
+These four properties imply that for `0 ≤ s ≤ L`,
 
-### Relation to Bump-Function Framework
+```math
+κ^{(n)}(s) = ΔR · L^{-n} · H^{(n)}(s / L),
+```
 
-This formulation is equivalent to the traditional bump-function approach:
-- In the traditional framework, one chooses a bump $G$, integrates and normalizes
-  it to get $F$, and uses $\kappa = R_1 + (R_2-R_1)F(s/L)$.
-- In the simplified picture: $H := F$ is the primary object, and $G$ is its
-  derivative: $G(z) = F'(z) = H'(z)$.
-- Normalization is implicitly encoded in $H(0)=0, H(1)=1$.
+so
 
-This reduces the construction to one function $H$ with simple endpoint and
-monotonicity conditions, while preserving all four properties.
+```math
+κ^{(n)}(0) = κ^{(n)}(L) = 0  for all n ≥ 1.
+```
+
+If we extend `κ` by constants `R₁` for `s < 0` and `R₂` for `s > L`, we get
+a globally `C^∞` curvature function with all derivatives matching at
+`0` and `L`, i.e. `G^∞` continuity at the joins.  This matches the fact
+that tangents and circular arcs have constant curvature, so all of their
+curvature derivatives (order ≥ 1) vanish.
+
+### Equivalence with the Bump-Function Framework
+
+The implementation actually starts from a bump `G` and *derives* `H`
+from it.  The key mathematical fact (used informally here, and reflected
+in the code) is:
+
+*If `H` satisfies the four conditions above, then:*
+
+* `G := H'` is a nonnegative `C^∞` bump on `(0,1)` with
+  ```math
+  ∫₀¹ G = 1,
+  ```
+
+* and conversely, if `G ≥ 0` is a `C^∞` bump with `∫₀¹ G = 1` and
+  we set `H(z) := ∫₀ᶻ G(t) dt`, then `H` satisfies (1)–(4).
+
+Thus the four abstract conditions on `H` are exactly equivalent to saying:
+
+> `H` is the normalized cumulative integral of a nonnegative `C^∞` bump `G`
+> supported in `(0,1)`.
+
+In this file:
+
+- The **generic framework** (`Smooth` namespace) formalizes the passage from `G` to `H`
+  together with the curvature profile `κ`.
+- The **`SmoothstepCurve` structure** packages the resulting `H`, the curvature `κ`,
+  and all accompanying properties (smoothness, flat joins, monotonicity).
+- The constructors `mkSmoothstepCurve`, `mkSmoothstepCurveFromShape`, and
+  `mkSmoothstepCurveFromDenom` give users multiple entry points for supplying their own bumps.
+  In particular, `mkSmoothstepCurveFromDenom` turns *any* denominator function into a bump via
+  `expNegInvGlue ∘ denom`, so the public API never fixes a single smoothstep.
+- The implementations `curve1` and `curve2` demonstrate two concrete denominators with different
+  quantitative trade-offs while still respecting the generic bump → shape → curvature pipeline.
 -/
 
 import Mathlib.Analysis.Calculus.ContDiff.Basic
@@ -141,16 +200,6 @@ lemma intervalIntegrable_on_unit_segment
   have hcont : ContinuousOn f (Set.Icc a b) :=
     hf.continuousOn.mono hsubset
   exact hcont.intervalIntegrable_of_Icc (μ := volume) (a := a) (b := b) hab
-
-lemma pos_on_subIoo_of_unit
-  {f : ℝ → ℝ} {a b : ℝ}
-  (ha0 : 0 ≤ a) (hb1 : b ≤ 1)
-  (hpos : ∀ x ∈ Set.Ioo 0 1, 0 < f x) :
-  ∀ t ∈ Set.Ioo a b, 0 < f t := by
-  intro t ht
-  have ht0 : 0 < t := lt_of_le_of_lt ha0 ht.1
-  have ht1 : t < 1 := lt_of_lt_of_le ht.2 hb1
-  exact hpos t ⟨ht0, ht1⟩
 
 /-- A convenient `FTCFilter` instance for `𝓝[unitInterval]`. -/
 private def ftcFilter_unitInterval {x : ℝ} (hx : x ∈ unitInterval) :
@@ -275,8 +324,11 @@ lemma HInt_monotone_on_unit
         (show (0 : ℝ) ∈ unitInterval by exact ⟨le_rfl, by norm_num⟩)
         hx hx.1
     have hpos_xy :
-        ∀ t ∈ Set.Ioo x y, 0 < G t :=
-      pos_on_subIoo_of_unit (f := G) hx.1 hy.2 hpos
+        ∀ t ∈ Set.Ioo x y, 0 < G t := by
+      intro t ht
+      have ht0 : 0 < t := lt_of_le_of_lt hx.1 ht.1
+      have ht1 : t < 1 := lt_of_lt_of_le ht.2 hy.2
+      exact hpos t ⟨ht0, ht1⟩
     have hadd :
         (∫ t in (0)..x, G t) + (∫ t in (x)..y, G t) =
             (∫ t in (0)..y, G t) := by
@@ -424,12 +476,13 @@ lemma iteratedDerivWithin_succ_H
     _ = (1 / HInt_denom G) * iteratedDerivWithin n G unitInterval x := by
       simp [hc, div_eq_mul_inv, mul_comm]
 
-lemma H_deriv_vanishes_at_zero_from_G
+lemma H_deriv_vanishes_at_point_from_G
     {G : ℝ → ℝ} (hG : ContDiffOn ℝ ∞ G unitInterval)
-    (hG_zero : G 0 = 0)
-    (hG_deriv_zero :
-      ∀ n : ℕ, 1 ≤ n → iteratedDerivWithin n G unitInterval 0 = 0) :
-    ∀ n : ℕ, 1 ≤ n → iteratedDerivWithin n (H G) unitInterval 0 = 0 := by
+    {x : ℝ} (hx : x ∈ unitInterval)
+    (hG_x : G x = 0)
+    (hG_deriv_x :
+      ∀ n : ℕ, 1 ≤ n → iteratedDerivWithin n G unitInterval x = 0) :
+    ∀ n : ℕ, 1 ≤ n → iteratedDerivWithin n (H G) unitInterval x = 0 := by
   classical
   intro n hn
   have hn0 : n ≠ 0 := by
@@ -437,17 +490,25 @@ lemma H_deriv_vanishes_at_zero_from_G
     have : 1 ≤ 0 := by simp [h] at hn
     exact Nat.not_succ_le_self 0 this
   obtain ⟨k, rfl⟩ := Nat.exists_eq_succ_of_ne_zero hn0
-  have hx0 : (0 : ℝ) ∈ unitInterval := ⟨le_rfl, by norm_num⟩
   have hformula :=
-    iteratedDerivWithin_succ_H hG hx0 k
+    iteratedDerivWithin_succ_H hG hx k
   cases k with
   | zero =>
-      simp [hformula, hG_zero]
+      simp [hformula, hG_x]
   | succ k =>
       have hk :
-          iteratedDerivWithin (Nat.succ k) G unitInterval 0 = 0 :=
-        hG_deriv_zero _ (Nat.succ_pos _)
+          iteratedDerivWithin (Nat.succ k) G unitInterval x = 0 :=
+        hG_deriv_x _ (Nat.succ_pos _)
       simp [hformula, hk]
+
+lemma H_deriv_vanishes_at_zero_from_G
+    {G : ℝ → ℝ} (hG : ContDiffOn ℝ ∞ G unitInterval)
+    (hG_zero : G 0 = 0)
+    (hG_deriv_zero :
+      ∀ n : ℕ, 1 ≤ n → iteratedDerivWithin n G unitInterval 0 = 0) :
+    ∀ n : ℕ, 1 ≤ n → iteratedDerivWithin n (H G) unitInterval 0 = 0 := by
+  have hx0 : (0 : ℝ) ∈ unitInterval := ⟨le_rfl, by norm_num⟩
+  exact H_deriv_vanishes_at_point_from_G hG hx0 hG_zero hG_deriv_zero
 
 lemma H_deriv_vanishes_at_one_from_G
     {G : ℝ → ℝ} (hG : ContDiffOn ℝ ∞ G unitInterval)
@@ -455,40 +516,8 @@ lemma H_deriv_vanishes_at_one_from_G
     (hG_deriv_one :
       ∀ n : ℕ, 1 ≤ n → iteratedDerivWithin n G unitInterval 1 = 0) :
     ∀ n : ℕ, 1 ≤ n → iteratedDerivWithin n (H G) unitInterval 1 = 0 := by
-  classical
-  intro n hn
-  have hn0 : n ≠ 0 := by
-    intro h
-    have : 1 ≤ 0 := by simp [h] at hn
-    exact Nat.not_succ_le_self 0 this
-  obtain ⟨k, rfl⟩ := Nat.exists_eq_succ_of_ne_zero hn0
   have hx1 : (1 : ℝ) ∈ unitInterval := ⟨zero_le_one, le_rfl⟩
-  have hformula :=
-    iteratedDerivWithin_succ_H hG hx1 k
-  cases k with
-  | zero =>
-      simp [hformula, hG_one]
-  | succ k =>
-      have hk :
-          iteratedDerivWithin (Nat.succ k) G unitInterval 1 = 0 :=
-        hG_deriv_one _ (Nat.succ_pos _)
-      simp [hformula, hk]
-
-lemma H_deriv_vanishes_at_zero
-    {G : ℝ → ℝ} (hG : ContDiffOn ℝ ∞ G unitInterval)
-    (hG_zero : G 0 = 0)
-    (hG_deriv_zero :
-      ∀ n : ℕ, 1 ≤ n → iteratedDerivWithin n G unitInterval 0 = 0) :
-    ∀ n : ℕ, 1 ≤ n → iteratedDerivWithin n (H G) unitInterval 0 = 0 :=
-  H_deriv_vanishes_at_zero_from_G hG hG_zero hG_deriv_zero
-
-lemma H_deriv_vanishes_at_one
-    {G : ℝ → ℝ} (hG : ContDiffOn ℝ ∞ G unitInterval)
-    (hG_one : G 1 = 0)
-    (hG_deriv_one :
-      ∀ n : ℕ, 1 ≤ n → iteratedDerivWithin n G unitInterval 1 = 0) :
-    ∀ n : ℕ, 1 ≤ n → iteratedDerivWithin n (H G) unitInterval 1 = 0 :=
-  H_deriv_vanishes_at_one_from_G hG hG_one hG_deriv_one
+  exact H_deriv_vanishes_at_point_from_G hG hx1 hG_one hG_deriv_one
 
 -- H maps to [0,1] on unitInterval
 lemma H_mem_unitInterval
@@ -512,8 +541,11 @@ lemma H_mem_unitInterval
   exact ⟨hH_z_ge_0, hH_z_le_1⟩
 
 -- The curvature function κ(s) = R₁ + (R₂ - R₁) H(s/L)
+def kappaOfShape (H : ℝ → ℝ) (s R₁ R₂ L : ℝ) : ℝ :=
+  R₁ + (R₂ - R₁) * H (s / L)
+
 def kappa (G : ℝ → ℝ) (s R₁ R₂ L : ℝ) : ℝ :=
-  R₁ + (R₂ - R₁) * H G (s / L)
+  kappaOfShape (H G) s R₁ R₂ L
 
 lemma div_mem_unitInterval_of_mem_Icc {L : ℝ} (hL : 0 < L) {s : ℝ}
     (hs : s ∈ Set.Icc 0 L) : s / L ∈ unitInterval := by
@@ -523,18 +555,17 @@ lemma div_mem_unitInterval_of_mem_Icc {L : ℝ} (hL : 0 < L) {s : ℝ}
   have : s / L ≤ L / L := div_le_div_of_nonneg_right hsL (le_of_lt hL)
   simpa [div_self hLne] using this
 
-lemma kappa_contDiffOn
-  {G : ℝ → ℝ} (hG : ContDiffOn ℝ ∞ G unitInterval)
+lemma kappaOfShape_contDiffOn
+  {H : ℝ → ℝ} (hH : ContDiffOn ℝ ∞ H unitInterval)
   (R₁ R₂ L : ℝ) (hL : 0 < L) :
-  ContDiffOn ℝ ∞ (fun s => kappa G s R₁ R₂ L) (Set.Icc 0 L) := by
+  ContDiffOn ℝ ∞ (fun s => kappaOfShape H s R₁ R₂ L) (Set.Icc 0 L) := by
   have hmap :
       ∀ ⦃s⦄, s ∈ Set.Icc 0 L → s / L ∈ unitInterval := by
     intro s hs
     exact div_mem_unitInterval_of_mem_Icc hL hs
-  have hH : ContDiffOn ℝ ∞ (H G) unitInterval := H_contDiffOn hG
-  have hcomp : ContDiffOn ℝ ∞ (fun s => H G (s / L)) (Set.Icc 0 L) :=
+  have hcomp : ContDiffOn ℝ ∞ (fun s => H (s / L)) (Set.Icc 0 L) :=
     hH.comp (contDiffOn_id.div_const L) (fun s hs => hmap hs)
-  let g : ℝ → ℝ := fun s => (R₂ - R₁) * H G (s / L)
+  let g : ℝ → ℝ := fun s => (R₂ - R₁) * H (s / L)
   have hscale :
       ContDiffOn ℝ ∞ g (Set.Icc 0 L) :=
     contDiffOn_const.mul hcomp
@@ -548,61 +579,96 @@ lemma kappa_contDiffOn
     refine (contDiffOn_congr ?_).mp hsum
     intro x hx
     simp
-  simpa [kappa, g, add_comm, add_left_comm, add_assoc] using hsum'
+  simpa [kappaOfShape, g, add_comm, add_left_comm, add_assoc] using hsum'
+
+lemma kappa_contDiffOn
+  {G : ℝ → ℝ} (hG : ContDiffOn ℝ ∞ G unitInterval)
+  (R₁ R₂ L : ℝ) (hL : 0 < L) :
+  ContDiffOn ℝ ∞ (fun s => kappa G s R₁ R₂ L) (Set.Icc 0 L) := by
+  simpa [kappa, kappaOfShape] using
+    kappaOfShape_contDiffOn (H := H G) (R₁ := R₁) (R₂ := R₂)
+      (L := L) (hH := H_contDiffOn hG) hL
+
+lemma kappaOfShape_at_zero (H : ℝ → ℝ) (R₁ R₂ L : ℝ) (hH0 : H 0 = 0) :
+    kappaOfShape H 0 R₁ R₂ L = R₁ := by
+  simp [kappaOfShape, hH0]
 
 lemma kappa_at_zero (G : ℝ → ℝ) (R₁ R₂ L : ℝ) :
     kappa G 0 R₁ R₂ L = R₁ := by
-  simp [kappa, H_zero]
+  simpa [kappa, kappaOfShape] using
+    kappaOfShape_at_zero (H := H G) R₁ R₂ L (H_zero G)
+
+lemma kappaOfShape_at_L
+    (H : ℝ → ℝ) (R₁ R₂ L : ℝ) (hL : L ≠ 0) (hH1 : H 1 = 1) :
+    kappaOfShape H L R₁ R₂ L = R₂ := by
+  have hdiv : L / L = 1 := div_self hL
+  simp [kappaOfShape, hdiv, hH1]
 
 lemma kappa_at_L
     (G : ℝ → ℝ) (R₁ R₂ L : ℝ) (hL : L ≠ 0) (hden : HInt_denom G ≠ 0) :
     kappa G L R₁ R₂ L = R₂ := by
-  have hdiv : L / L = 1 := div_self hL
-  simp [kappa, hdiv, H_one (G := G) hden]
+  simpa [kappa, kappaOfShape] using
+    kappaOfShape_at_L (H := H G) R₁ R₂ L hL (H_one (G := G) hden)
 
 -- Helper lemma for the common setup in monotonicity proofs
-private lemma kappa_inequality_helper
-    {G : ℝ → ℝ} (hG : ContDiffOn ℝ ∞ G unitInterval)
-    (hpos : ∀ x ∈ Set.Ioo 0 1, 0 < G x)
-    (L : ℝ) (hL : 0 < L) (hden : 0 < HInt_denom G)
+private lemma kappa_inequality_helper_of_shape
+    {H : ℝ → ℝ} (hmono : MonotoneOn H unitInterval)
+    (L : ℝ) (hL : 0 < L)
     (x y : ℝ) (hx : x ∈ Set.Icc 0 L) (hy : y ∈ Set.Icc 0 L) (hxy : x ≤ y) :
-    H G (x / L) ≤ H G (y / L) := by
+    H (x / L) ≤ H (y / L) := by
   have hxmap : x / L ∈ unitInterval :=
     div_mem_unitInterval_of_mem_Icc hL hx
   have hymap : y / L ∈ unitInterval :=
     div_mem_unitInterval_of_mem_Icc hL hy
   have hxy_div : x / L ≤ y / L :=
     div_le_div_of_nonneg_right hxy (le_of_lt hL)
-  have hHmono := H_monotone_on_unit hG hpos hden
-  exact hHmono hxmap hymap hxy_div
+  exact hmono hxmap hymap hxy_div
+
+lemma kappaOfShape_monotone_on_Icc
+    {H : ℝ → ℝ} (hHmono : MonotoneOn H unitInterval)
+    (R₁ R₂ L : ℝ) (hL : 0 < L) (hmono : R₁ ≤ R₂) :
+    MonotoneOn (fun s => kappaOfShape H s R₁ R₂ L) (Set.Icc 0 L) := by
+  intro x hx y hy hxy
+  have hcmp := kappa_inequality_helper_of_shape hHmono L hL x y hx hy hxy
+  have hΔ : 0 ≤ R₂ - R₁ := sub_nonneg.mpr hmono
+  have hscaled :
+      (R₂ - R₁) * H (x / L) ≤ (R₂ - R₁) * H (y / L) :=
+    mul_le_mul_of_nonneg_left hcmp hΔ
+  have := add_le_add_left hscaled R₁
+  simpa [kappaOfShape, add_comm, add_left_comm, add_assoc] using this
 
 lemma kappa_monotone_on_Icc
     {G : ℝ → ℝ} (hG : ContDiffOn ℝ ∞ G unitInterval)
     (hpos : ∀ x ∈ Set.Ioo 0 1, 0 < G x)
     (R₁ R₂ L : ℝ) (hL : 0 < L) (hden : 0 < HInt_denom G) (hmono : R₁ ≤ R₂) :
     MonotoneOn (fun s => kappa G s R₁ R₂ L) (Set.Icc 0 L) := by
+  have hmonoH := H_monotone_on_unit hG hpos hden
+  simpa [kappa, kappaOfShape] using
+    kappaOfShape_monotone_on_Icc (H := H G) (hHmono := hmonoH)
+      (R₁ := R₁) (R₂ := R₂) (L := L) hL hmono
+
+lemma kappaOfShape_antitone_on_Icc
+    {H : ℝ → ℝ} (hHmono : MonotoneOn H unitInterval)
+    (R₁ R₂ L : ℝ) (hL : 0 < L) (hmono : R₂ ≤ R₁) :
+    AntitoneOn (fun s => kappaOfShape H s R₁ R₂ L) (Set.Icc 0 L) := by
   intro x hx y hy hxy
-  have hcmp := kappa_inequality_helper hG hpos L hL hden x y hx hy hxy
-  have hΔ : 0 ≤ R₂ - R₁ := sub_nonneg.mpr hmono
+  have hcmp := kappa_inequality_helper_of_shape hHmono L hL x y hx hy hxy
+  have hΔ : R₂ - R₁ ≤ 0 := sub_nonpos.mpr hmono
   have hscaled :
-      (R₂ - R₁) * H G (x / L) ≤ (R₂ - R₁) * H G (y / L) :=
-    mul_le_mul_of_nonneg_left hcmp hΔ
+      (R₂ - R₁) * H (y / L) ≤ (R₂ - R₁) * H (x / L) :=
+    mul_le_mul_of_nonpos_left hcmp hΔ
   have := add_le_add_left hscaled R₁
-  simpa [kappa, add_comm, add_left_comm, add_assoc] using this
+  simpa [kappaOfShape, add_comm, add_left_comm, add_assoc] using this
 
 lemma kappa_antitone_on_Icc
     {G : ℝ → ℝ} (hG : ContDiffOn ℝ ∞ G unitInterval)
     (hpos : ∀ x ∈ Set.Ioo 0 1, 0 < G x)
     (R₁ R₂ L : ℝ) (hL : 0 < L) (hden : 0 < HInt_denom G) (hmono : R₂ ≤ R₁) :
     AntitoneOn (fun s => kappa G s R₁ R₂ L) (Set.Icc 0 L) := by
-  intro x hx y hy hxy
-  have hcmp := kappa_inequality_helper hG hpos L hL hden x y hx hy hxy
-  have hΔ : R₂ - R₁ ≤ 0 := sub_nonpos.mpr hmono
-  have hscaled :
-      (R₂ - R₁) * H G (y / L) ≤ (R₂ - R₁) * H G (x / L) :=
-    mul_le_mul_of_nonpos_left hcmp hΔ
-  have := add_le_add_left hscaled R₁
-  simpa [kappa, add_comm, add_left_comm, add_assoc] using this
+  have hmonoH := H_monotone_on_unit hG hpos hden
+  simpa [kappa, kappaOfShape] using
+    kappaOfShape_antitone_on_Icc (H := H G) (hHmono := hmonoH)
+      (R₁ := R₁) (R₂ := R₂) (L := L) hL hmono
 
 /-
 ### SmoothstepCurve Structure
@@ -614,11 +680,17 @@ structure SmoothstepCurve where
   H : ℝ → ℝ
   κ : ℝ → ℝ → ℝ → ℝ → ℝ
   H_is_C_inf : ContDiffOn ℝ ∞ H unitInterval
+  H_zero : H 0 = 0
+  H_one : H 1 = 1
+  H_mem_unitInterval :
+    ∀ ⦃z : ℝ⦄, z ∈ unitInterval → H z ∈ unitInterval
   κ_is_C_inf :
     ∀ R₁ R₂ L (_ : 0 < L),
       ContDiffOn ℝ ∞ (fun s => κ s R₁ R₂ L) (Set.Icc 0 L)
   κ_at_zero : ∀ R₁ R₂ L, κ 0 R₁ R₂ L = R₁
   κ_at_L : ∀ R₁ R₂ L (_ : L ≠ 0), κ L R₁ R₂ L = R₂
+  κ_formula :
+    ∀ s R₁ R₂ L, κ s R₁ R₂ L = R₁ + (R₂ - R₁) * H (s / L)
   -- Monotonicity of the shape function on [0,1].
   H_monotone_on_unit : MonotoneOn H unitInterval
   -- κ is monotone when R₁ ≤ R₂ and antitone when R₂ ≤ R₁.
@@ -643,11 +715,19 @@ def mkSmoothstepCurve (G : ℝ → ℝ) (hG : ContDiffOn ℝ ∞ G unitInterval)
     H := H G,
     κ := fun s R₁ R₂ L => kappa G s R₁ R₂ L,
     H_is_C_inf := H_contDiffOn hG,
+    H_zero := H_zero G,
+    H_one := H_one G hden.ne',
+    H_mem_unitInterval := by
+      intro z hz
+      exact H_mem_unitInterval hG hpos hden hz,
     κ_is_C_inf := fun R₁ R₂ L hL => kappa_contDiffOn hG R₁ R₂ L hL,
     κ_at_zero := fun R₁ R₂ L => kappa_at_zero G R₁ R₂ L,
     κ_at_L := fun R₁ R₂ L hL => by
       have hden_ne : HInt_denom G ≠ 0 := hden.ne'
       exact kappa_at_L G R₁ R₂ L hL hden_ne,
+    κ_formula := by
+      intro s R₁ R₂ L
+      simp [kappa, kappaOfShape],
     H_monotone_on_unit := by
       exact H_monotone_on_unit hG hpos hden,
     κ_monotone_on_Icc := by
@@ -660,6 +740,50 @@ def mkSmoothstepCurve (G : ℝ → ℝ) (hG : ContDiffOn ℝ ∞ G unitInterval)
       H_deriv_vanishes_at_zero_from_G hG hG_zero hG_deriv_zero,
     H_deriv_vanishes_at_one :=
       H_deriv_vanishes_at_one_from_G hG hG_one hG_deriv_one
+  }
+
+/-- Constructor that takes an abstract shape function satisfying the four core properties. -/
+def mkSmoothstepCurveFromShape (H : ℝ → ℝ)
+  (hH_smooth : ContDiffOn ℝ ∞ H unitInterval)
+  (hH_zero : H 0 = 0) (hH_one : H 1 = 1)
+  (hH_mem : ∀ ⦃z : ℝ⦄, z ∈ unitInterval → H z ∈ unitInterval)
+  (hH_mono : MonotoneOn H unitInterval)
+  (hH_deriv_zero : ∀ n : ℕ, n ≥ 1 → iteratedDerivWithin n H unitInterval 0 = 0)
+  (hH_deriv_one : ∀ n : ℕ, n ≥ 1 → iteratedDerivWithin n H unitInterval 1 = 0) :
+  SmoothstepCurve :=
+  {
+    H := H,
+    κ := fun s R₁ R₂ L => kappaOfShape H s R₁ R₂ L,
+    H_is_C_inf := hH_smooth,
+    H_zero := hH_zero,
+    H_one := hH_one,
+    H_mem_unitInterval := by
+      intro z hz
+      exact hH_mem hz,
+    κ_is_C_inf := by
+      intro R₁ R₂ L hL
+      exact kappaOfShape_contDiffOn (H := H) (hH := hH_smooth)
+        (R₁ := R₁) (R₂ := R₂) (L := L) hL,
+    κ_at_zero := by
+      intro R₁ R₂ L
+      exact kappaOfShape_at_zero (H := H) R₁ R₂ L hH_zero,
+    κ_at_L := by
+      intro R₁ R₂ L hL
+      exact kappaOfShape_at_L (H := H) R₁ R₂ L hL hH_one,
+    κ_formula := by
+      intro s R₁ R₂ L
+      simp [kappaOfShape],
+    H_monotone_on_unit := hH_mono,
+    κ_monotone_on_Icc := by
+      intro R₁ R₂ L hL hmono
+      exact kappaOfShape_monotone_on_Icc (H := H) (hHmono := hH_mono)
+        (R₁ := R₁) (R₂ := R₂) (L := L) hL hmono,
+    κ_antitone_on_Icc := by
+      intro R₁ R₂ L hL hmono
+      exact kappaOfShape_antitone_on_Icc (H := H) (hHmono := hH_mono)
+        (R₁ := R₁) (R₂ := R₂) (L := L) hL hmono,
+    H_deriv_vanishes_at_zero := hH_deriv_zero,
+    H_deriv_vanishes_at_one := hH_deriv_one
   }
 
 -- Helper lemmas for expNegInvGlue compositions
@@ -812,10 +936,11 @@ lemma iteratedDerivWithin_expNegInvGlue_comp_of_mem
   have hzero := iteratedDeriv_comp_expNegInvGlue_at hdenom ha n
   simpa [hEq] using hzero
 
-lemma H_deriv_vanishes_at_zero_expNegInvGlue_comp
+lemma H_deriv_vanishes_at_endpoint_expNegInvGlue_comp
   {denom : ℝ → ℝ} (hdenom_contDiff : ContDiff ℝ ∞ denom)
-  (hdenom_zero : denom 0 = 0) :
-  ∀ n : ℕ, n ≥ 1 → iteratedDerivWithin n (H (fun t => expNegInvGlue (denom t))) unitInterval 0 = 0 := by
+  {a : ℝ} (ha_mem : a ∈ unitInterval) (ha_zero : denom a = 0) :
+  ∀ n : ℕ, n ≥ 1 →
+      iteratedDerivWithin n (H (fun t => expNegInvGlue (denom t))) unitInterval a = 0 := by
   let G := fun t => expNegInvGlue (denom t)
   have hG : ContDiffOn ℝ ∞ G unitInterval :=
     (expNegInvGlue.contDiff.comp hdenom_contDiff).contDiffOn
@@ -824,39 +949,32 @@ lemma H_deriv_vanishes_at_zero_expNegInvGlue_comp
   · have hH : ∀ x, H G x = 0 := by simp [H, hden]
     rw [iteratedDerivWithin_congr (f := H G) (g := fun _ => 0) (s := unitInterval) (n := n) (by intro x hx; exact hH x)]
     · apply iteratedDerivWithin_zero_fun_all
-    · simp
+    · simpa [unitInterval] using ha_mem
   · have hvan :=
-      H_deriv_vanishes_at_zero_from_G hG
-        (by simp [G, hdenom_zero, expNegInvGlue.zero])
+      H_deriv_vanishes_at_point_from_G hG ha_mem
+        (by simp [G, ha_zero, expNegInvGlue.zero])
         (by
           intro k hk
           exact
             iteratedDerivWithin_expNegInvGlue_comp_of_mem
-              hdenom_contDiff hdenom_zero (by norm_num) k)
+              hdenom_contDiff ha_zero ha_mem k)
     exact hvan n hn
+
+lemma H_deriv_vanishes_at_zero_expNegInvGlue_comp
+  {denom : ℝ → ℝ} (hdenom_contDiff : ContDiff ℝ ∞ denom)
+  (hdenom_zero : denom 0 = 0) :
+  ∀ n : ℕ, n ≥ 1 → iteratedDerivWithin n (H (fun t => expNegInvGlue (denom t))) unitInterval 0 = 0 := by
+  have hmem : (0 : ℝ) ∈ unitInterval := ⟨le_rfl, by norm_num⟩
+  exact
+    H_deriv_vanishes_at_endpoint_expNegInvGlue_comp hdenom_contDiff hmem hdenom_zero
 
 lemma H_deriv_vanishes_at_one_expNegInvGlue_comp
   {denom : ℝ → ℝ} (hdenom_contDiff : ContDiff ℝ ∞ denom)
   (hdenom_one : denom 1 = 0) :
   ∀ n : ℕ, n ≥ 1 → iteratedDerivWithin n (H (fun t => expNegInvGlue (denom t))) unitInterval 1 = 0 := by
-  let G := fun t => expNegInvGlue (denom t)
-  have hG : ContDiffOn ℝ ∞ G unitInterval :=
-    (expNegInvGlue.contDiff.comp hdenom_contDiff).contDiffOn
-  intro n hn
-  by_cases hden : HInt_denom G = 0
-  · have hH : ∀ x, H G x = 0 := by simp [H, hden]
-    rw [iteratedDerivWithin_congr (f := H G) (g := fun _ => 0) (s := unitInterval) (n := n) (by intro x hx; exact hH x)]
-    · apply iteratedDerivWithin_zero_fun_all
-    · simp
-  · have hvan :=
-      H_deriv_vanishes_at_one_from_G hG
-        (by simp [G, hdenom_one, expNegInvGlue.zero])
-        (by
-          intro k hk
-          exact
-            iteratedDerivWithin_expNegInvGlue_comp_of_mem
-              hdenom_contDiff hdenom_one (by norm_num) k)
-    exact hvan n hn
+  have hmem : (1 : ℝ) ∈ unitInterval := ⟨zero_le_one, le_rfl⟩
+  exact
+    H_deriv_vanishes_at_endpoint_expNegInvGlue_comp hdenom_contDiff hmem hdenom_one
 
 -- Helper to create smoothstep curve from any denominator function
 def mkSmoothstepCurveFromDenom (denom : ℝ → ℝ) (hdenom_contDiff : ContDiff ℝ ∞ denom)
@@ -873,11 +991,19 @@ def mkSmoothstepCurveFromDenom (denom : ℝ → ℝ) (hdenom_contDiff : ContDiff
     H := H G,
     κ := fun s R₁ R₂ L => kappa G s R₁ R₂ L,
     H_is_C_inf := H_contDiffOn hG,
+    H_zero := H_zero G,
+    H_one := H_one G hden.ne',
+    H_mem_unitInterval := by
+      intro z hz
+      exact H_mem_unitInterval hG hpos hden hz,
     κ_is_C_inf := fun R₁ R₂ L hL => kappa_contDiffOn hG R₁ R₂ L hL,
     κ_at_zero := fun R₁ R₂ L => kappa_at_zero G R₁ R₂ L,
     κ_at_L := fun R₁ R₂ L hL => by
       have hden_ne : HInt_denom G ≠ 0 := hden.ne'
       exact kappa_at_L G R₁ R₂ L hL hden_ne,
+    κ_formula := by
+      intro s R₁ R₂ L
+      simp [kappa, kappaOfShape],
     H_monotone_on_unit := H_monotone_on_unit hG hpos hden,
     κ_monotone_on_Icc := fun R₁ R₂ L hL hmono =>
       kappa_monotone_on_Icc hG hpos R₁ R₂ L hL hden hmono,
@@ -894,8 +1020,16 @@ end GenericFramework
 /-
 ## Implementation 1: Standard Smoothstep Curve
 
-Uses the classic smoothstep bump function $$G\left(z\right)=e^{\left(-\frac{1}{z\left(1-z\right)}\right)}$$.
-Provides G^∞ continuous transition from tangent to circular arc.
+This section keeps the generic “parameterize by `G`” design but instantiates it
+with the classical bump
+```
+G₁ z = expNegInvGlue (z * (1 - z)).
+```
+On the open interval `(0,1)` this coincides with `exp (-1 / (z (1 - z)))`, so it
+is strictly positive there, integrates to a positive finite constant, and every
+iterated derivative of `G₁` vanishes at `z = 0` and `z = 1`.  The exported shape
+is still the normalized primitive `H G₁`, so downstream applications remain free
+to swap in different bumps when tighter high-order derivative bounds are needed.
 -/
 
 noncomputable
@@ -939,10 +1073,15 @@ end SmoothstepCurve1
 /-
 ## Implementation 2: Improved Smoothstep Curve
 
-Uses modified bump function $$G_2\left(z\right)=e^{\left(1-\frac{1}{4z\left(1-z\right)}\right)}$$ with better performance characteristics:
-- Smaller angular jerk and snap
-- Shorter transition length for same deflection angle
-- Better motion control performance
+Here we simply rescale the denominator and pick
+```
+G₂ z = expNegInvGlue (4 * z * (1 - z)).
+```
+Inside `(0,1)` this behaves like `exp (-1 / (4 z (1 - z)))`, while
+`expNegInvGlue` glues the bump (and every derivative) to zero at the endpoints.
+Normalizing the primitive once again gives the shape `H G₂`, so the public API is
+unchanged even though this particular bump can yield smaller jerk/snap bounds in
+practice.
 -/
 
 noncomputable
