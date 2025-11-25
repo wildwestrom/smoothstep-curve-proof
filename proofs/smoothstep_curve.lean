@@ -175,10 +175,9 @@ import Mathlib.Analysis.Calculus.IteratedDeriv.Defs
 import Mathlib.Analysis.Calculus.IteratedDeriv.FaaDiBruno
 import Mathlib.Topology.Order.DenselyOrdered
 
-noncomputable
 section GenericFramework
 
-open scoped ContDiff Topology
+open ContDiff Topology
 open MeasureTheory
 open Filter
 
@@ -211,7 +210,7 @@ private def ftcFilter_unitInterval {x : ℝ} (hx : x ∈ unitInterval) :
       (h := ⟨hxIcc⟩))
 
 -- The standard primitive from 0: z ↦ ∫ t in (0)..z, f t.
-def primitiveFromZero (f : ℝ → ℝ) : ℝ → ℝ :=
+noncomputable def primitiveFromZero (f : ℝ → ℝ) : ℝ → ℝ :=
   fun z => ∫ t in (0)..z, f t
 
 -- Fundamental result: the primitive z ↦ ∫_{0..z} f is C^∞ on [0,1] if f is C^∞ on [0,1]
@@ -264,13 +263,13 @@ lemma clampUnit_of_nonpos {z : ℝ} (hz : z ≤ 0) : clampUnit z = 0 := by
 namespace Smooth
 
 -- Numerator of the normalized integral: ∫₀ᶻ H'(t) dt (where H' is the derivative of the shape function)
-def HInt (G : ℝ → ℝ) (z : ℝ) : ℝ := ∫ t in Set.uIoc 0 z, G t
+noncomputable def HInt (G : ℝ → ℝ) (z : ℝ) : ℝ := ∫ t in Set.uIoc 0 z, G t
 
 -- Denominator of the normalized integral: ∫₀¹ H'(t) dt (normalization constant)
-def HInt_denom (G : ℝ → ℝ) : ℝ := ∫ t in Set.uIoc 0 1, G t
+noncomputable def HInt_denom (G : ℝ → ℝ) : ℝ := ∫ t in Set.uIoc 0 1, G t
 
 -- The shape function H(z) = HInt(clampUnit z) / HInt_denom
-def H (G : ℝ → ℝ) (z : ℝ) : ℝ := HInt G (clampUnit z) / HInt_denom G
+noncomputable def H (G : ℝ → ℝ) (z : ℝ) : ℝ := HInt G (clampUnit z) / HInt_denom G
 
 lemma HInt_zero (G : ℝ → ℝ) : HInt G 0 = 0 := by
   simp [HInt]
@@ -541,10 +540,10 @@ lemma H_mem_unitInterval
   exact ⟨hH_z_ge_0, hH_z_le_1⟩
 
 -- The curvature function κ(s) = R₁ + (R₂ - R₁) H(s/L)
-def kappaOfShape (H : ℝ → ℝ) (s R₁ R₂ L : ℝ) : ℝ :=
+noncomputable def kappaOfShape (H : ℝ → ℝ) (s R₁ R₂ L : ℝ) : ℝ :=
   R₁ + (R₂ - R₁) * H (s / L)
 
-def kappa (G : ℝ → ℝ) (s R₁ R₂ L : ℝ) : ℝ :=
+noncomputable def kappa (G : ℝ → ℝ) (s R₁ R₂ L : ℝ) : ℝ :=
   kappaOfShape (H G) s R₁ R₂ L
 
 lemma div_mem_unitInterval_of_mem_Icc {L : ℝ} (hL : 0 < L) {s : ℝ}
@@ -704,7 +703,7 @@ structure SmoothstepCurve where
   H_deriv_vanishes_at_zero : ∀ n : ℕ, n ≥ 1 → iteratedDerivWithin n H unitInterval 0 = 0
   H_deriv_vanishes_at_one : ∀ n : ℕ, n ≥ 1 → iteratedDerivWithin n H unitInterval 1 = 0
 
-def mkSmoothstepCurve (G : ℝ → ℝ) (hG : ContDiffOn ℝ ∞ G unitInterval)
+noncomputable def mkSmoothstepCurve (G : ℝ → ℝ) (hG : ContDiffOn ℝ ∞ G unitInterval)
   (hpos : ∀ x ∈ Set.Ioo 0 1, 0 < G x) (hG_zero : G 0 = 0) (hG_one : G 1 = 0)
   (hG_deriv_zero : ∀ n : ℕ, n ≥ 1 → iteratedDerivWithin n G unitInterval 0 = 0)
   (hG_deriv_one : ∀ n : ℕ, n ≥ 1 → iteratedDerivWithin n G unitInterval 1 = 0) : SmoothstepCurve :=
@@ -743,7 +742,7 @@ def mkSmoothstepCurve (G : ℝ → ℝ) (hG : ContDiffOn ℝ ∞ G unitInterval)
   }
 
 /-- Constructor that takes an abstract shape function satisfying the four core properties. -/
-def mkSmoothstepCurveFromShape (H : ℝ → ℝ)
+noncomputable def mkSmoothstepCurveFromShape (H : ℝ → ℝ)
   (hH_smooth : ContDiffOn ℝ ∞ H unitInterval)
   (hH_zero : H 0 = 0) (hH_one : H 1 = 1)
   (hH_mem : ∀ ⦃z : ℝ⦄, z ∈ unitInterval → H z ∈ unitInterval)
@@ -977,7 +976,7 @@ lemma H_deriv_vanishes_at_one_expNegInvGlue_comp
     H_deriv_vanishes_at_endpoint_expNegInvGlue_comp hdenom_contDiff hmem hdenom_one
 
 -- Helper to create smoothstep curve from any denominator function
-def mkSmoothstepCurveFromDenom (denom : ℝ → ℝ) (hdenom_contDiff : ContDiff ℝ ∞ denom)
+noncomputable def mkSmoothstepCurveFromDenom (denom : ℝ → ℝ) (hdenom_contDiff : ContDiff ℝ ∞ denom)
   (hdenom_pos : ∀ x ∈ Set.Ioo 0 1, 0 < denom x) (hdenom_zero : denom 0 = 0) (hdenom_one : denom 1 = 0) : SmoothstepCurve :=
   let G := fun t => expNegInvGlue (denom t)
   let hG : ContDiffOn ℝ ∞ G unitInterval :=
@@ -1013,12 +1012,22 @@ def mkSmoothstepCurveFromDenom (denom : ℝ → ℝ) (hdenom_contDiff : ContDiff
     H_deriv_vanishes_at_one := H_deriv_vanishes_at_one_expNegInvGlue_comp hdenom_contDiff hdenom_one
   }
 
+structure DenomParams where
+  denom : ℝ → ℝ
+  contDiff : ContDiff ℝ ∞ denom
+  pos_on_Ioo : ∀ x ∈ Set.Ioo (0 : ℝ) 1, 0 < denom x
+  zero : denom 0 = 0
+  one : denom 1 = 0
+
+noncomputable def curveFrom (p : DenomParams) : SmoothstepCurve :=
+  mkSmoothstepCurveFromDenom p.denom p.contDiff p.pos_on_Ioo p.zero p.one
+
 end Smooth
 
 end GenericFramework
 
 /-
-## Implementation 1: Standard Smoothstep Curve
+## Standard Smoothstep Curve
 
 This section keeps the generic “parameterize by `G`” design but instantiates it
 with the classical bump
@@ -1032,97 +1041,444 @@ is still the normalized primitive `H G₁`, so downstream applications remain fr
 to swap in different bumps when tighter high-order derivative bounds are needed.
 -/
 
-noncomputable
-section SmoothstepCurve1
+section CanonicalSmoothstep
 
 open scoped ContDiff Topology
 open Smooth MeasureTheory
 
 /-
-### Implementation Details
+### Canonical Smoothstep
 
-Uses expNegInvGlue function from Mathlib for proper boundary conditions.
+Relies on `expNegInvGlue` to glue every derivative to zero at the endpoints.
 -/
 
--- The denominator function z(1-z) for the bump function
-def denom_fn (z : ℝ) : ℝ := z * (1 - z)
+-- Canonical denominator z(1 - z) used in the base bump
+def denomCanonical (z : ℝ) : ℝ := z * (1 - z)
 
-lemma denom_contDiff : ContDiff ℝ ∞ denom_fn :=
+lemma denomCanonical_contDiff : ContDiff ℝ ∞ denomCanonical :=
   contDiff_id.mul (contDiff_const.sub contDiff_id)
 
-lemma denom_pos_on_Ioo (t : ℝ) (ht : t ∈ Set.Ioo 0 1) : 0 < denom_fn t := by
+lemma denomCanonical_pos_on_Ioo (t : ℝ) (ht : t ∈ Set.Ioo 0 1) :
+    0 < denomCanonical t := by
   rcases ht with ⟨ht0, ht1⟩
   exact mul_pos ht0 (sub_pos.mpr ht1)
 
--- denom_fn vanishes at boundaries
-lemma denom_fn_zero : denom_fn 0 = 0 := by simp [denom_fn]
-lemma denom_fn_one : denom_fn 1 = 0 := by simp [denom_fn]
+-- Canonical denominator vanishes at both endpoints
+lemma denomCanonical_fn_zero : denomCanonical 0 = 0 := by simp [denomCanonical]
+lemma denomCanonical_fn_one : denomCanonical 1 = 0 := by simp [denomCanonical]
 
--- G = expNegInvGlue ∘ denom_fn vanishes at boundaries
-lemma G₁_zero : (fun t => expNegInvGlue (denom_fn t)) 0 = 0 := by
-  simp [denom_fn_zero, expNegInvGlue.zero_of_nonpos (le_refl 0)]
+-- Resulting bump vanishes at both endpoints
+lemma G₁_zero : (fun t => expNegInvGlue (denomCanonical t)) 0 = 0 := by
+  simp [denomCanonical_fn_zero, expNegInvGlue.zero_of_nonpos (le_refl 0)]
 
-lemma G₁_one : (fun t => expNegInvGlue (denom_fn t)) 1 = 0 := by
-  simp [denom_fn_one, expNegInvGlue.zero_of_nonpos (le_refl 0)]
+lemma G₁_one : (fun t => expNegInvGlue (denomCanonical t)) 1 = 0 := by
+  simp [denomCanonical_fn_one, expNegInvGlue.zero_of_nonpos (le_refl 0)]
 
-def curve1 : SmoothstepCurve :=
-  mkSmoothstepCurveFromDenom denom_fn denom_contDiff denom_pos_on_Ioo denom_fn_zero denom_fn_one
+noncomputable def curveCanonical : SmoothstepCurve :=
+  mkSmoothstepCurveFromDenom denomCanonical denomCanonical_contDiff denomCanonical_pos_on_Ioo denomCanonical_fn_zero denomCanonical_fn_one
 
-end SmoothstepCurve1
+end CanonicalSmoothstep
 
 /-
-## Implementation 2: Improved Smoothstep Curve
-
-Here we simply rescale the denominator and pick
-```
-G₂ z = expNegInvGlue (4 * z * (1 - z)).
-```
-Inside `(0,1)` this behaves like `exp (-1 / (4 z (1 - z)))`, while
-`expNegInvGlue` glues the bump (and every derivative) to zero at the endpoints.
-Normalizing the primitive once again gives the shape `H G₂`, so the public API is
-unchanged even though this particular bump can yield smaller jerk/snap bounds in
-practice.
+## Parametric Families of Denominators
 -/
 
-noncomputable
-section SmoothstepCurve2
+section ParametricDenominators
 
 open scoped ContDiff Topology
 open Smooth MeasureTheory
 
-def denom2 (z : ℝ) : ℝ := 4 * z * (1 - z)
+variable (a : ℝ)
 
-lemma denom2_contDiff : ContDiff ℝ ∞ denom2 :=
+/-
+Here we simply rescale the denominator with a single coefficient `a` and pick
+```
+G₂ z = expNegInvGlue (az(1 - z)),
+```
+for some positive parameter `a`. Inside `(0,1)` this behaves like
+`exp (-1 / (a z (1 - z)))`, while `expNegInvGlue` glues the bump (and every derivative)
+to zero at the endpoints. Normalizing the primitive once again gives the shape `H G₂`,
+so the public API is unchanged even though this particular bump can yield smaller
+jerk/snap bounds in practice.
+-/
+
+def denomScaled (z : ℝ) : ℝ := a * z * (1 - z)
+
+lemma denomScaled_contDiff : ContDiff ℝ ∞ (denomScaled a) :=
   (contDiff_const.mul contDiff_id).mul (contDiff_const.sub contDiff_id)
 
-lemma denom2_pos_on_Ioo (x : ℝ) (hx : x ∈ Set.Ioo 0 1) : 0 < denom2 x := by
+lemma denomScaled_pos_on_Ioo {x : ℝ} (hx : x ∈ Set.Ioo 0 1) (ha : 0 < a) :
+    0 < denomScaled a x := by
   rcases hx with ⟨hx0, hx1⟩
   have hx_pos : 0 < x := hx0
   have h1x_pos : 0 < 1 - x := sub_pos.mpr hx1
-  have : 0 < 4 * x * (1 - x) := by
-    have h4 : 0 < (4 : ℝ) := by norm_num
-    exact mul_pos (mul_pos h4 hx_pos) h1x_pos
-  simpa [denom2] using this
+  have : 0 < a * x * (1 - x) := by
+    exact mul_pos (mul_pos ha hx_pos) h1x_pos
+  simpa [denomScaled] using this
 
--- denom2 vanishes at 0
-lemma denom2_zero : denom2 0 = 0 := by
-  simp only [denom2]
-  norm_num
+lemma denomScaled_zero : denomScaled a 0 = 0 := by
+  simp [denomScaled]
 
--- denom2 vanishes at 1
-lemma denom2_one : denom2 1 = 0 := by
-  simp only [denom2]
-  norm_num
+lemma denomScaled_one : denomScaled a 1 = 0 := by
+  simp [denomScaled]
 
--- G = expNegInvGlue ∘ denom2 vanishes at 0
-lemma G₂_zero : (fun t => expNegInvGlue (denom2 t)) 0 = 0 := by
-  simp [denom2_zero, expNegInvGlue.zero_of_nonpos (le_refl 0)]
+noncomputable def curveScaled (ha : 0 < a) : SmoothstepCurve :=
+  mkSmoothstepCurveFromDenom (denomScaled a) (denomScaled_contDiff a)
+    (fun {x} hx => denomScaled_pos_on_Ioo (a := a) (x := x) hx ha) (denomScaled_zero a) (denomScaled_one a)
 
--- G = expNegInvGlue ∘ denom2 vanishes at 1
-lemma G₂_one : (fun t => expNegInvGlue (denom2 t)) 1 = 0 := by
-  simp [denom2_one, expNegInvGlue.zero_of_nonpos (le_refl 0)]
+/-
+Now we tweak it further by adding asymmetric powers of `p` and `q`
+```
+G(z) = expNegInvGlue (az^p(1 - z)^q)
+```
+-/
 
-def curve2 : SmoothstepCurve :=
-  mkSmoothstepCurveFromDenom denom2 denom2_contDiff denom2_pos_on_Ioo denom2_zero denom2_one
+def denomPow (a : ℝ) (p q : ℕ) (z : ℝ) : ℝ :=
+  a * z ^ p * (1 - z) ^ q
 
-end SmoothstepCurve2
+lemma denomPow_contDiff (a : ℝ) (p q : ℕ) : ContDiff ℝ ∞ (denomPow a p q) := by
+  have hz_pow : ContDiff ℝ ∞ (fun z : ℝ => z ^ p) := by
+    simpa using contDiff_id.pow p
+  have h1_pow : ContDiff ℝ ∞ (fun z : ℝ => (1 - z) ^ q) := by
+    simpa using (contDiff_const.sub contDiff_id).pow q
+  have hconst : ContDiff ℝ ∞ (fun _ : ℝ => a) := contDiff_const
+  have hprod := (hconst.mul hz_pow).mul h1_pow
+  simpa [denomPow] using hprod
+
+lemma denomPow_pos_on_Ioo {a : ℝ} {p q : ℕ} (ha : 0 < a) :
+    ∀ ⦃x : ℝ⦄, x ∈ Set.Ioo (0 : ℝ) 1 → 0 < denomPow a p q x := by
+  intro x hx
+  rcases hx with ⟨hx0, hx1⟩
+  have hx_pos : 0 < x := hx0
+  have h1x_pos : 0 < 1 - x := sub_pos.mpr hx1
+  have hz := pow_pos hx_pos p
+  have h1z := pow_pos h1x_pos q
+  exact mul_pos (mul_pos ha hz) h1z
+
+lemma denomPow_zero {a : ℝ} {p q : ℕ} (hp : 0 < p) :
+    denomPow a p q 0 = 0 := by
+  cases p with
+  | zero => cases hp
+  | succ p' =>
+      simp [denomPow]
+
+lemma denomPow_one {a : ℝ} {p q : ℕ} (hq : 0 < q) :
+    denomPow a p q 1 = 0 := by
+  cases q with
+  | zero => cases hq
+  | succ q' =>
+      simp [denomPow]
+
+def denomPowParams {a : ℝ} {p q : ℕ} (ha : 0 < a) (hp : 0 < p) (hq : 0 < q) :
+    DenomParams where
+  denom := denomPow a p q
+  contDiff := denomPow_contDiff a p q
+  pos_on_Ioo := denomPow_pos_on_Ioo (a := a) (p := p) (q := q) ha
+  zero := denomPow_zero (a := a) (p := p) (q := q) hp
+  one := denomPow_one (a := a) (p := p) (q := q) hq
+
+noncomputable def curvePow {a : ℝ} {p q : ℕ} (ha : 0 < a) (hp : 0 < p) (hq : 0 < q) :
+    SmoothstepCurve :=
+  curveFrom (denomPowParams (a := a) (p := p) (q := q) ha hp hq)
+
+-- Polynomial bump denominator with an affine skew term
+def denomPoly (α β : ℝ) (z : ℝ) : ℝ :=
+  (z * (1 - z)) * (α + β * z)
+
+lemma denomPoly_contDiff (α β : ℝ) : ContDiff ℝ ∞ (denomPoly α β) := by
+  have h1 : ContDiff ℝ ∞ (fun z : ℝ => z * (1 - z)) := by
+    simpa [denomCanonical] using denomCanonical_contDiff
+  have h2 : ContDiff ℝ ∞ (fun z : ℝ => α + β * z) :=
+    (contDiff_const.add (contDiff_const.mul contDiff_id))
+  have hprod :
+      ContDiff ℝ ∞ (fun z : ℝ => (z * (1 - z)) * (α + β * z)) :=
+    h1.mul h2
+  simpa [denomPoly] using hprod
+
+lemma denomPoly_pos_on_Ioo {α β : ℝ} (hα : 0 < α) (hβ : 0 ≤ β) :
+    ∀ ⦃x : ℝ⦄, x ∈ Set.Ioo (0 : ℝ) 1 → 0 < denomPoly α β x := by
+  intro x hx
+  rcases hx with ⟨hx0, hx1⟩
+  have hbase : 0 < x * (1 - x) := mul_pos hx0 (sub_pos.mpr hx1)
+  have hβx : 0 ≤ β * x := mul_nonneg hβ hx0.le
+  have hlin : 0 < α + β * x := by
+    have hαle : α ≤ α + β * x := by
+      have := add_le_add_left hβx α
+      simpa using this
+    exact lt_of_lt_of_le hα hαle
+  have := mul_pos hbase hlin
+  simpa [denomPoly] using this
+
+lemma denomPoly_zero (α β : ℝ) : denomPoly α β 0 = 0 := by
+  simp [denomPoly]
+
+lemma denomPoly_one (α β : ℝ) : denomPoly α β 1 = 0 := by
+  simp [denomPoly]
+
+def denomPolyParams {α β : ℝ} (hα : 0 < α) (hβ : 0 ≤ β) : DenomParams where
+  denom := denomPoly α β
+  contDiff := denomPoly_contDiff α β
+  pos_on_Ioo := denomPoly_pos_on_Ioo hα hβ
+  zero := denomPoly_zero α β
+  one := denomPoly_one α β
+
+noncomputable def curvePoly {α β : ℝ} (hα : 0 < α) (hβ : 0 ≤ β) : SmoothstepCurve :=
+  curveFrom (denomPolyParams (α := α) (β := β) hα hβ)
+
+end ParametricDenominators
+
+/-
+## Reparametrization
+-/
+
+noncomputable
+section Reparametrization
+
+open scoped ContDiff
+open Smooth
+
+namespace Smooth
+
+lemma iteratedDerivWithin_comp_vanish_of_flat
+    {g φ : ℝ → ℝ} (hg : ContDiffOn ℝ ∞ g unitInterval)
+    (hφ : ContDiffOn ℝ ∞ φ unitInterval)
+    (hmap : Set.MapsTo φ unitInterval unitInterval)
+    {a : ℝ} (ha : a ∈ unitInterval)
+    (hflat : ∀ n : ℕ, n ≥ 1 → iteratedDerivWithin n φ unitInterval a = 0) :
+    ∀ n : ℕ, n ≥ 1 → iteratedDerivWithin n (fun z => g (φ z)) unitInterval a = 0 := by
+  intro n hn
+  classical
+  have hs : UniqueDiffOn ℝ unitInterval :=
+    uniqueDiffOn_Icc (show (0 : ℝ) < 1 by norm_num)
+  have ha_image : φ a ∈ unitInterval := hmap ha
+  have hginf :
+      ContDiffWithinAt ℝ ((n : ℕ∞)) g unitInterval (φ a) :=
+    ((hg.contDiffWithinAt ha_image).of_le (by
+      exact_mod_cast (le_top : (n : ℕ∞) ≤ (⊤ : ℕ∞))))
+  have hφinf :
+      ContDiffWithinAt ℝ ((n : ℕ∞)) φ unitInterval a :=
+    ((hφ.contDiffWithinAt ha).of_le (by
+      exact_mod_cast (le_top : (n : ℕ∞) ≤ (⊤ : ℕ∞))))
+  have hsum :=
+    iteratedDerivWithin_comp_eq_sum_orderedFinpartition
+      (hg := hginf) (hf := hφinf) (ht := hs) (hs := hs)
+      (hx := ha) (hst := hmap) (hi := le_rfl)
+  have hpos : 0 < n := Nat.succ_le_iff.mp hn
+  have hparts :
+      ∀ c : OrderedFinpartition n,
+        ∏ j : Fin c.length,
+            iteratedDerivWithin (c.partSize j) φ unitInterval a = 0 := by
+    intro c
+    have hlen : 0 < c.length := c.length_pos hpos
+    classical
+    have hfactor :
+        ∀ j : Fin c.length,
+          iteratedDerivWithin (c.partSize j) φ unitInterval a = 0 := by
+      intro j
+      have hjpos : 1 ≤ c.partSize j := Nat.succ_le_of_lt (c.partSize_pos j)
+      exact hflat _ hjpos
+    classical
+    have hprod :
+        ((Finset.univ : Finset (Fin c.length)).prod fun j =>
+            iteratedDerivWithin (c.partSize j) φ unitInterval a : ℝ) = 0 := by
+      refine
+        Finset.prod_eq_zero
+          (s := (Finset.univ : Finset (Fin c.length)))
+          (f := fun j => iteratedDerivWithin (c.partSize j) φ unitInterval a)
+          (i := ⟨0, hlen⟩) ?_ ?_
+      · simp
+      · simpa using hfactor ⟨0, hlen⟩
+    simpa using hprod
+  have hterm :
+      ∀ c : OrderedFinpartition n,
+        iteratedDerivWithin c.length g unitInterval (φ a)
+            * ∏ j, iteratedDerivWithin (c.partSize j) φ unitInterval a = 0 := by
+    intro c
+    simp [hparts c]
+  have hsimp :
+      ∑ c : OrderedFinpartition n,
+        iteratedDerivWithin c.length g unitInterval (φ a)
+            * ∏ j : Fin c.length,
+                iteratedDerivWithin (c.partSize j) φ unitInterval a = 0 := by
+    classical
+    refine Finset.sum_eq_zero ?_
+    intro c _
+    exact hterm c
+  simpa using hsum.trans hsimp
+
+def reparam (base : SmoothstepCurve) (φ : ℝ → ℝ)
+    (hφ_smooth : ContDiffOn ℝ ∞ φ unitInterval)
+    (hφ_mem : ∀ ⦃z : ℝ⦄, z ∈ unitInterval → φ z ∈ unitInterval)
+    (hφ_zero : φ 0 = 0) (hφ_one : φ 1 = 1)
+    (hφ_mono : MonotoneOn φ unitInterval)
+    (hφ_flat_zero : ∀ n : ℕ, 1 ≤ n → iteratedDerivWithin n φ unitInterval 0 = 0)
+    (hφ_flat_one : ∀ n : ℕ, 1 ≤ n → iteratedDerivWithin n φ unitInterval 1 = 0) :
+    SmoothstepCurve := by
+  classical
+  let Hφ : ℝ → ℝ := fun z => base.H (φ z)
+  have hmaps : Set.MapsTo φ unitInterval unitInterval := fun z hz => hφ_mem hz
+  have hz0 : (0 : ℝ) ∈ unitInterval := ⟨le_rfl, by norm_num⟩
+  have hz1 : (1 : ℝ) ∈ unitInterval := ⟨zero_le_one, le_rfl⟩
+  refine mkSmoothstepCurveFromShape
+    Hφ
+    ?smooth ?H0 ?H1 ?Hmem ?Hmono ?Hflat0 ?Hflat1
+  · have hcomp :
+        ContDiffOn ℝ ∞ (fun z => base.H (φ z)) unitInterval :=
+      base.H_is_C_inf.comp hφ_smooth fun z hz => hφ_mem hz
+    simpa [Hφ] using hcomp
+  · simp [Hφ, hφ_zero, base.H_zero]
+  · simp [Hφ, hφ_one, base.H_one]
+  · intro z hz
+    exact base.H_mem_unitInterval (hφ_mem hz)
+  · intro x hx y hy hxy
+    exact base.H_monotone_on_unit (hφ_mem hx) (hφ_mem hy) (hφ_mono hx hy hxy)
+  · intro n hn
+    have := iteratedDerivWithin_comp_vanish_of_flat
+      (g := base.H) (φ := φ)
+      base.H_is_C_inf hφ_smooth hmaps hz0 hφ_flat_zero
+    exact this n hn
+  · intro n hn
+    have := iteratedDerivWithin_comp_vanish_of_flat
+      (g := base.H) (φ := φ)
+      base.H_is_C_inf hφ_smooth hmaps hz1 hφ_flat_one
+    exact this n hn
+
+end Smooth
+
+end Reparametrization
+
+/-
+## Convex Combinations
+-/
+
+section ConvexCombination
+
+open scoped ContDiff
+open Smooth
+
+namespace Smooth
+
+def mixShape (w : ℝ) (H₁ H₂ : ℝ → ℝ) : ℝ → ℝ :=
+  fun z => w * H₁ z + (1 - w) * H₂ z
+
+lemma mixShape_contDiff (w : ℝ)
+    {H₁ H₂ : ℝ → ℝ} (hH₁ : ContDiffOn ℝ ∞ H₁ unitInterval)
+    (hH₂ : ContDiffOn ℝ ∞ H₂ unitInterval) :
+    ContDiffOn ℝ ∞ (mixShape w H₁ H₂) unitInterval := by
+  have hmul₁ :
+      ContDiffOn ℝ ∞ (fun z => w * H₁ z) unitInterval :=
+    (ContDiffOn.const_smul (s := unitInterval) (f := H₁) w hH₁)
+  have hmul₂ :
+      ContDiffOn ℝ ∞ (fun z => (1 - w) * H₂ z) unitInterval :=
+    (ContDiffOn.const_smul (s := unitInterval) (f := H₂) (1 - w) hH₂)
+  exact hmul₁.add hmul₂
+
+lemma mixShape_mem_unitInterval {w : ℝ} (hw : w ∈ Set.Icc (0 : ℝ) 1)
+    {H₁ H₂ : ℝ → ℝ}
+    (hH₁ : ∀ ⦃z : ℝ⦄, z ∈ unitInterval → H₁ z ∈ unitInterval)
+    (hH₂ : ∀ ⦃z : ℝ⦄, z ∈ unitInterval → H₂ z ∈ unitInterval)
+    {z : ℝ} (hz : z ∈ unitInterval) :
+    mixShape w H₁ H₂ z ∈ unitInterval := by
+  obtain ⟨hw0, hw1⟩ := hw
+  have h1w : 0 ≤ 1 - w := sub_nonneg.mpr hw1
+  obtain ⟨h1lo, h1hi⟩ := hH₁ hz
+  obtain ⟨h2lo, h2hi⟩ := hH₂ hz
+  refine ⟨?_, ?_⟩
+  · have hterm1 : 0 ≤ w * H₁ z := mul_nonneg hw0 h1lo
+    have hterm2 : 0 ≤ (1 - w) * H₂ z := mul_nonneg h1w h2lo
+    exact add_nonneg hterm1 hterm2
+  · have hterm1 : w * H₁ z ≤ w * 1 := by
+      exact mul_le_mul_of_nonneg_left h1hi hw0
+    have hterm2 : (1 - w) * H₂ z ≤ (1 - w) * 1 := by
+      exact mul_le_mul_of_nonneg_left h2hi h1w
+    have hsum_le :
+        mixShape w H₁ H₂ z ≤ w * (1 : ℝ) + (1 - w) * (1 : ℝ) :=
+      add_le_add hterm1 hterm2
+    have hsum_eq : w * (1 : ℝ) + (1 - w) * (1 : ℝ) = 1 := by ring
+    simpa [mixShape, hsum_eq] using hsum_le
+
+lemma mixShape_monotone {w : ℝ} (hw : 0 ≤ w) (hw' : 0 ≤ 1 - w)
+    {H₁ H₂ : ℝ → ℝ} (hH₁ : MonotoneOn H₁ unitInterval)
+    (hH₂ : MonotoneOn H₂ unitInterval) :
+    MonotoneOn (mixShape w H₁ H₂) unitInterval := by
+  intro x hx y hy hxy
+  have h1 := hH₁ hx hy hxy
+  have h2 := hH₂ hx hy hxy
+  have hterm1 :
+      w * H₁ x ≤ w * H₁ y :=
+    mul_le_mul_of_nonneg_left h1 hw
+  have hterm2 :
+      (1 - w) * H₂ x ≤ (1 - w) * H₂ y :=
+    mul_le_mul_of_nonneg_left h2 hw'
+  have := add_le_add hterm1 hterm2
+  simpa [mixShape, add_comm, add_left_comm, add_assoc, add_right_comm] using this
+
+lemma iteratedDeriv_mixShape_zero
+    {c₁ c₂ : SmoothstepCurve} {w : ℝ} {a : ℝ} (ha : a ∈ unitInterval) :
+    ∀ n : ℕ, iteratedDerivWithin n
+        (mixShape w c₁.H c₂.H) unitInterval a =
+      w * iteratedDerivWithin n c₁.H unitInterval a +
+        (1 - w) * iteratedDerivWithin n c₂.H unitInterval a := by
+  intro n
+  classical
+  have hs : UniqueDiffOn ℝ unitInterval :=
+    uniqueDiffOn_Icc (show (0 : ℝ) < 1 by norm_num)
+  have hcont₁ :
+      ContDiffWithinAt ℝ ((n : ℕ∞)) c₁.H unitInterval a :=
+    ((c₁.H_is_C_inf.contDiffWithinAt ha).of_le (by
+      exact_mod_cast (le_top : (n : ℕ∞) ≤ (⊤ : ℕ∞))))
+  have hcont₂ :
+      ContDiffWithinAt ℝ ((n : ℕ∞)) c₂.H unitInterval a :=
+    ((c₂.H_is_C_inf.contDiffWithinAt ha).of_le (by
+      exact_mod_cast (le_top : (n : ℕ∞) ≤ (⊤ : ℕ∞))))
+  have hscale₁ :=
+    iteratedDerivWithin_const_mul (hx := ha) (h := hs) w hcont₁
+  have hscale₂ :=
+    iteratedDerivWithin_const_mul (hx := ha) (h := hs) (1 - w) hcont₂
+  have hcontscaled₁ :
+      ContDiffWithinAt ℝ ((n : ℕ∞)) (fun z => w * c₁.H z) unitInterval a :=
+    (ContDiffWithinAt.const_smul (s := unitInterval) (f := c₁.H) (x := a) w hcont₁)
+  have hcontscaled₂ :
+      ContDiffWithinAt ℝ ((n : ℕ∞)) (fun z => (1 - w) * c₂.H z) unitInterval a :=
+    (ContDiffWithinAt.const_smul (s := unitInterval) (f := c₂.H) (x := a) (1 - w) hcont₂)
+  have hadd :=
+    iteratedDerivWithin_fun_add (hx := ha) (h := hs) hcontscaled₁ hcontscaled₂
+  have hscaled :
+      iteratedDerivWithin n (mixShape w c₁.H c₂.H) unitInterval a =
+        iteratedDerivWithin n (fun z => w * c₁.H z) unitInterval a +
+          iteratedDerivWithin n (fun z => (1 - w) * c₂.H z) unitInterval a := by
+    simpa [mixShape, add_comm, add_left_comm, add_assoc] using hadd
+  simpa [mixShape, add_comm, add_left_comm, add_assoc, hscale₁, hscale₂] using hscaled
+
+noncomputable def mixCurve (w : ℝ) (hw : w ∈ Set.Icc (0 : ℝ) 1)
+    (c₁ c₂ : SmoothstepCurve) : SmoothstepCurve := by
+  classical
+  refine mkSmoothstepCurveFromShape
+    (mixShape w c₁.H c₂.H)
+    (mixShape_contDiff w c₁.H_is_C_inf c₂.H_is_C_inf)
+    (by simp [mixShape, c₁.H_zero, c₂.H_zero])
+    (by simp [mixShape, c₁.H_one, c₂.H_one])
+    ?mem ?mono ?flat0 ?flat1
+  · intro z hz
+    exact mixShape_mem_unitInterval hw
+      (c₁.H_mem_unitInterval) (c₂.H_mem_unitInterval) hz
+  · have hw0 : 0 ≤ w := hw.1
+    have hw1 : 0 ≤ 1 - w := sub_nonneg.mpr hw.2
+    exact mixShape_monotone hw0 hw1
+      c₁.H_monotone_on_unit c₂.H_monotone_on_unit
+  · intro n hn
+    have hderiv := iteratedDeriv_mixShape_zero
+        (c₁ := c₁) (c₂ := c₂) (w := w) (a := 0) (ha := ⟨le_rfl, by norm_num⟩) n
+    have hz₁ := c₁.H_deriv_vanishes_at_zero n hn
+    have hz₂ := c₂.H_deriv_vanishes_at_zero n hn
+    simp [hderiv, hz₁, hz₂]
+  · intro n hn
+    have hderiv := iteratedDeriv_mixShape_zero
+        (c₁ := c₁) (c₂ := c₂) (w := w) (a := 1) (ha := ⟨zero_le_one, le_rfl⟩) n
+    have hz₁ := c₁.H_deriv_vanishes_at_one n hn
+    have hz₂ := c₂.H_deriv_vanishes_at_one n hn
+    simp [hderiv, hz₁, hz₂]
+
+end Smooth
+
+end ConvexCombination
