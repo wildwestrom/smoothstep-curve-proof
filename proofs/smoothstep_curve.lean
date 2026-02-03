@@ -296,10 +296,7 @@ lemma iteratedDerivWithin_succ_H
           unitInterval x
         = c *
           iteratedDerivWithin (n + 1) (HInt G) unitInterval x := by
-    simpa using
-      iteratedDerivWithin_const_mul (hx := hx)
-        (h := uniqueDiffOn_Icc_zero_one)
-        (c := c) (f := HInt G) (n := n + 1) hcont
+    exact iteratedDerivWithin_const_mul hx uniqueDiffOn_Icc_zero_one c hcont
   have hHInt :=
     iteratedDerivWithin_succ_HInt hG hx n
   calc
@@ -506,6 +503,8 @@ lemma kappa_antitone_on_Icc
     kappaOfShape_antitone_on_Icc (H := H G) (hHmono := hmonoH)
       (R₁ := R₁) (R₂ := R₂) (L := L) hL hmono
 
+section SmoothStepStructure
+
 /-
 ### SmoothstepCurve Structure
 
@@ -636,7 +635,7 @@ lemma iteratedDerivWithin_zero_fun_all {s : Set ℝ} {n : ℕ} :
     ∀ x, iteratedDerivWithin n (fun _ => (0 : ℝ)) s x = 0 := by
   intro x
   induction n generalizing x with
-  | zero => simp [iteratedDerivWithin_zero]
+  | zero => simp
   | succ n ih =>
     rw [iteratedDerivWithin_succ]
     have : iteratedDerivWithin n (fun _ => (0 : ℝ)) s = 0 := funext ih
@@ -750,7 +749,6 @@ lemma iteratedDeriv_comp_expNegInvGlue_at
     simpa [ha] using iteratedDeriv_expNegInvGlue_zero (c.length)
   simpa [Function.comp, hzero] using hsum
 
-
 lemma iteratedDerivWithin_expNegInvGlue_comp_of_mem
     {denom : ℝ → ℝ} (hdenom : ContDiff ℝ ∞ denom)
     {a : ℝ} (ha : denom a = 0) (ha_mem : a ∈ unitInterval) :
@@ -858,6 +856,8 @@ structure DenomParams where
 
 noncomputable def curveFrom (p : DenomParams) : SmoothstepCurve :=
   mkSmoothstepCurveFromDenom p.denom p.contDiff p.pos_on_Ioo p.zero p.one
+
+end SmoothStepStructure
 
 end Smooth
 
