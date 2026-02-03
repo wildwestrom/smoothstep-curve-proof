@@ -9,6 +9,9 @@ require mathlib from git
 require batteries from git
   "https://github.com/leanprover-community/batteries" @ "main"
 
+require Paperproof from git
+  "https://github.com/Paper-Proof/paperproof.git" @"main"/"lean"
+
 @[default_target]
 lean_lib proofs
 
