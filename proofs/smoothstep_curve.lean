@@ -29,22 +29,13 @@ G = H' which serves as a bump function in the implementation).
 lemma intervalIntegrable_on_unit_segment
   {f : ℝ → ℝ} {a b : ℝ} (hf : ContDiffOn ℝ ∞ f unitInterval)
   (ha : a ∈ unitInterval) (hb : b ∈ unitInterval) (hab : a ≤ b) :
-  IntervalIntegrable f volume a b := by
-  have hsubset : Set.Icc a b ⊆ unitInterval := by
-    intro t ht
-    exact ⟨le_trans ha.1 ht.1, le_trans ht.2 hb.2⟩
-  have hcont : ContinuousOn f (Set.Icc a b) :=
-    hf.continuousOn.mono hsubset
-  exact hcont.intervalIntegrable_of_Icc (μ := volume) (a := a) (b := b) hab
+  IntervalIntegrable f volume a b :=
+  (hf.continuousOn.mono fun _ ht => ⟨ha.1.trans ht.1, ht.2.trans hb.2⟩).intervalIntegrable_of_Icc hab
 
 /-- A convenient `FTCFilter` instance for `𝓝[unitInterval]`. -/
 private def ftcFilter_unitInterval {x : ℝ} (hx : x ∈ unitInterval) :
-    intervalIntegral.FTCFilter x (𝓝[unitInterval] x) (𝓝[unitInterval] x) := by
-  classical
-  have hxIcc : x ∈ Set.Icc (0 : ℝ) 1 := by simpa [unitInterval] using hx
-  simpa [unitInterval] using
-    (intervalIntegral.FTCFilter.nhdsIcc (x := x) (a := (0 : ℝ)) (b := (1 : ℝ))
-      (h := ⟨hxIcc⟩))
+    intervalIntegral.FTCFilter x (𝓝[unitInterval] x) (𝓝[unitInterval] x) :=
+  intervalIntegral.FTCFilter.nhdsIcc (h := ⟨hx⟩)
 
 -- The standard primitive from 0: z ↦ ∫ t in (0)..z, f t.
 noncomputable def primitiveFromZero (f : ℝ → ℝ) : ℝ → ℝ :=
@@ -54,29 +45,15 @@ noncomputable def primitiveFromZero (f : ℝ → ℝ) : ℝ → ℝ :=
 lemma primitive_is_C_inf_on_unitInterval
   (f : ℝ → ℝ) (hfinf : ContDiffOn ℝ ∞ f unitInterval) :
   ContDiffOn ℝ ∞ (primitiveFromZero f) unitInterval := by
-  classical
-  have hmeas :
-      ∀ x, StronglyMeasurableAtFilter f (𝓝[unitInterval] x) volume :=
-    fun x =>
-      hfinf.continuousOn.stronglyMeasurableAtFilter_nhdsWithin
-        (hs := isClosed_Icc.measurableSet) x
-  have h_deriv :
-      ∀ x ∈ unitInterval, HasDerivWithinAt (primitiveFromZero f) (f x) unitInterval x := by
-    intro x hx
-    have hint : IntervalIntegrable f volume 0 x :=
-      intervalIntegrable_on_unit_segment hfinf
-        (show (0 : ℝ) ∈ unitInterval by exact ⟨le_rfl, by norm_num⟩) hx hx.1
-    have hcont : ContinuousWithinAt f unitInterval x := hfinf.continuousOn.continuousWithinAt hx
-    have hFTC : intervalIntegral.FTCFilter x (𝓝[unitInterval] x) (𝓝[unitInterval] x) :=
-      ftcFilter_unitInterval hx
-    haveI : intervalIntegral.FTCFilter x (𝓝[unitInterval] x) (𝓝[unitInterval] x) := hFTC
-    exact intervalIntegral.integral_hasDerivWithinAt_right (a := 0) (b := x) hint (hmeas x) hcont
-  have h_diff : DifferentiableOn ℝ (primitiveFromZero f) unitInterval :=
-    fun x hx => (h_deriv x hx).differentiableWithinAt
-  have h_deriv_eq : ∀ x ∈ unitInterval, derivWithin (primitiveFromZero f) unitInterval x = f x :=
-    fun x hx => (h_deriv x hx).derivWithin (uniqueDiffOn_Icc_zero_one x hx)
+  have h_deriv x (hx : x ∈ unitInterval) : HasDerivWithinAt (primitiveFromZero f) (f x) unitInterval x :=
+    haveI := ftcFilter_unitInterval hx
+    intervalIntegral.integral_hasDerivWithinAt_right
+      (intervalIntegrable_on_unit_segment hfinf ⟨le_rfl, by norm_num⟩ hx hx.1)
+      (hfinf.continuousOn.stronglyMeasurableAtFilter_nhdsWithin isClosed_Icc.measurableSet x)
+      (hfinf.continuousOn.continuousWithinAt hx)
   exact (contDiffOn_infty_iff_derivWithin uniqueDiffOn_Icc_zero_one).mpr
-    ⟨h_diff, (contDiffOn_congr h_deriv_eq).mpr hfinf⟩
+    ⟨fun x hx => (h_deriv x hx).differentiableWithinAt,
+     (contDiffOn_congr fun x hx => (h_deriv x hx).derivWithin (uniqueDiffOn_Icc_zero_one x hx)).mpr hfinf⟩
 
 -- Helper: convert uIoc integral to intervalIntegral
 lemma uIoc_to_intervalIntegral (f : ℝ → ℝ) {z : ℝ} (hz : z ∈ unitInterval) :
@@ -85,13 +62,9 @@ lemma uIoc_to_intervalIntegral (f : ℝ → ℝ) {z : ℝ} (hz : z ∈ unitInter
 
 def clampUnit (z : ℝ) : ℝ := min (max z 0) 1
 
-lemma clampUnit_of_mem {z : ℝ} (hz : z ∈ unitInterval) : clampUnit z = z := by
-  have hz0 : 0 ≤ z := hz.1
-  have hz1 : z ≤ 1 := hz.2
-  simp [clampUnit, hz0, hz1]
+lemma clampUnit_of_mem {z : ℝ} (hz : z ∈ unitInterval) : clampUnit z = z := by simp [clampUnit, hz.1, hz.2]
 
-lemma clampUnit_of_nonpos {z : ℝ} (hz : z ≤ 0) : clampUnit z = 0 := by
-  simp [clampUnit, hz]
+lemma clampUnit_of_nonpos {z : ℝ} (hz : z ≤ 0) : clampUnit z = 0 := by simp [clampUnit, hz]
 
 /-
 ### Core Definitions
@@ -108,249 +81,129 @@ noncomputable def HInt_denom (G : ℝ → ℝ) : ℝ := ∫ t in Set.uIoc 0 1, G
 -- The shape function H(z) = HInt(clampUnit z) / HInt_denom
 noncomputable def H (G : ℝ → ℝ) (z : ℝ) : ℝ := HInt G (clampUnit z) / HInt_denom G
 
-lemma HInt_zero (G : ℝ → ℝ) : HInt G 0 = 0 := by
-  simp [HInt]
+lemma HInt_zero (G : ℝ → ℝ) : HInt G 0 = 0 := by simp [HInt]
 
-lemma HInt_one (G : ℝ → ℝ) : HInt G 1 = HInt_denom G := by
-  simp [HInt, HInt_denom]
+lemma HInt_one (G : ℝ → ℝ) : HInt G 1 = HInt_denom G := by simp [HInt, HInt_denom]
 
-lemma H_zero (G : ℝ → ℝ) : H G 0 = 0 := by
-  simp [H, HInt_zero, clampUnit_of_nonpos (show (0 : ℝ) ≤ 0 by rfl)]
+lemma H_zero (G : ℝ → ℝ) : H G 0 = 0 := by simp [H, HInt_zero, clampUnit_of_nonpos le_rfl]
 
 lemma H_one (G : ℝ → ℝ) (hden : HInt_denom G ≠ 0) : H G 1 = 1 := by
-  have hclamp : clampUnit 1 = 1 :=
-    clampUnit_of_mem (show (1 : ℝ) ∈ unitInterval by exact ⟨zero_le_one, le_rfl⟩)
-  simp [H, hclamp, HInt_one, hden]
+  simp [H, clampUnit_of_mem ⟨zero_le_one, le_rfl⟩, HInt_one, hden]
 
 lemma HInt_contDiffOn
   {G : ℝ → ℝ} (hG : ContDiffOn ℝ ∞ G unitInterval) :
-  ContDiffOn ℝ ∞ (HInt G) unitInterval := by
-  classical
-  let P : ℝ → ℝ := primitiveFromZero G
-  have hP : ContDiffOn ℝ ∞ P unitInterval :=
-    primitive_is_C_inf_on_unitInterval G hG
-  have h_congr : ∀ z ∈ unitInterval, HInt G z = P z := by
-    intro z hz; simpa [HInt, P] using uIoc_to_intervalIntegral G hz
-  exact ContDiffOn.congr_mono hP h_congr fun ⦃a⦄ a ↦ a
+  ContDiffOn ℝ ∞ (HInt G) unitInterval :=
+  (primitive_is_C_inf_on_unitInterval G hG).congr fun z hz => by
+    simp only [HInt, primitiveFromZero, uIoc_to_intervalIntegral G hz]
 
 lemma HInt_denom_pos
   {G : ℝ → ℝ} (hint : IntervalIntegrable G volume 0 1)
   (hpos : ∀ x ∈ Set.Ioo 0 1, 0 < G x) :
   0 < HInt_denom G := by
-  have hposI : 0 < ∫ x in (0)..1, G x :=
-    intervalIntegral.intervalIntegral_pos_of_pos_on (a:=0) (b:=1) (f:=G) hint hpos (by norm_num)
-  rw [HInt_denom, uIoc_to_intervalIntegral G (show (1 : ℝ) ∈ unitInterval from ⟨zero_le_one, le_rfl⟩)]
-  exact hposI
+  rw [HInt_denom, uIoc_to_intervalIntegral G ⟨zero_le_one, le_rfl⟩]
+  exact intervalIntegral.intervalIntegral_pos_of_pos_on hint hpos (by norm_num)
 
 lemma HInt_monotone_on_unit
   {G : ℝ → ℝ} (hG : ContDiffOn ℝ ∞ G unitInterval)
   (hpos : ∀ x ∈ Set.Ioo 0 1, 0 < G x) :
   MonotoneOn (HInt G) unitInterval := by
   intro x hx y hy hxy
-  classical
-  by_cases hxy_eq : x = y
-  · subst hxy_eq; exact le_rfl
-  · have hlt : x < y := lt_of_le_of_ne hxy hxy_eq
-    have hint_xy :
-        IntervalIntegrable G volume x y :=
-      intervalIntegrable_on_unit_segment hG hx hy hxy
-    have h0x :
-        IntervalIntegrable G volume 0 x :=
-      intervalIntegrable_on_unit_segment hG
-        (show (0 : ℝ) ∈ unitInterval by exact ⟨le_rfl, by norm_num⟩)
-        hx hx.1
-    have hpos_xy :
-        ∀ t ∈ Set.Ioo x y, 0 < G t := by
-      intro t ht
-      have ht0 : 0 < t := lt_of_le_of_lt hx.1 ht.1
-      have ht1 : t < 1 := lt_of_lt_of_le ht.2 hy.2
-      exact hpos t ⟨ht0, ht1⟩
-    have hadd :
-        (∫ t in (0)..x, G t) + (∫ t in (x)..y, G t) =
-            (∫ t in (0)..y, G t) := by
-      simpa using
-        (intervalIntegral.integral_add_adjacent_intervals (μ := volume)
-          (f := G) (a := 0) (b := x) (c := y) h0x hint_xy)
-    have hxInt : (∫ t in (0)..x, G t) = HInt G x := by
-      simpa [HInt] using (uIoc_to_intervalIntegral G hx).symm
-    have hyInt : (∫ t in (0)..y, G t) = HInt G y := by
-      simpa [HInt] using (uIoc_to_intervalIntegral G hy).symm
-    have hinc_nonneg : 0 ≤ ∫ t in (x)..y, G t := by
-      have hpos_int :
-          0 < ∫ t in (x)..y, G t :=
-        intervalIntegral.intervalIntegral_pos_of_pos_on
-          (a := x) (b := y) (f := G) hint_xy hpos_xy hlt
-      exact hpos_int.le
-    have hadd' : HInt G x + ∫ t in (x)..y, G t = HInt G y := by
-      simpa [hxInt, hyInt] using hadd
-    have hx_le_sum :
-        HInt G x ≤ HInt G x + ∫ t in (x)..y, G t :=
-      le_add_of_nonneg_right hinc_nonneg
-    simpa [hadd'] using hx_le_sum
+  rcases eq_or_lt_of_le hxy with rfl | hlt
+  · exact le_rfl
+  · have hint_xy := intervalIntegrable_on_unit_segment hG hx hy hxy
+    have h0x := intervalIntegrable_on_unit_segment hG ⟨le_rfl, by norm_num⟩ hx hx.1
+    have hpos_xy t (ht : t ∈ Set.Ioo x y) : 0 < G t :=
+      hpos t ⟨hx.1.trans_lt ht.1, ht.2.trans_le hy.2⟩
+    have hadd := intervalIntegral.integral_add_adjacent_intervals h0x hint_xy
+    have hxInt : (∫ t in (0)..x, G t) = HInt G x := by simp [HInt, uIoc_to_intervalIntegral G hx]
+    have hyInt : (∫ t in (0)..y, G t) = HInt G y := by simp [HInt, uIoc_to_intervalIntegral G hy]
+    have hinc_pos := intervalIntegral.intervalIntegral_pos_of_pos_on hint_xy hpos_xy hlt
+    linarith [hadd]
 
 lemma H_eq_ratio_on_unit {G : ℝ → ℝ} {z : ℝ} (hz : z ∈ unitInterval) :
-  H G z = HInt G z / HInt_denom G := by
-  simp [H, clampUnit_of_mem hz]
+  H G z = HInt G z / HInt_denom G := by simp [H, clampUnit_of_mem hz]
 
 lemma H_monotone_on_unit
   {G : ℝ → ℝ} (hG : ContDiffOn ℝ ∞ G unitInterval)
   (hpos : ∀ x ∈ Set.Ioo 0 1, 0 < G x) (hden : 0 < HInt_denom G) :
-  MonotoneOn (H G) unitInterval := by
-  intro x hx y hy hxy
-  have hxH : H G x = HInt G x / HInt_denom G := H_eq_ratio_on_unit (G := G) hx
-  have hyH : H G y = HInt G y / HInt_denom G := H_eq_ratio_on_unit (G := G) hy
-  have hHInt_mono : HInt G x ≤ HInt G y :=
-    HInt_monotone_on_unit hG hpos hx hy hxy
-  have := div_le_div_of_nonneg_right hHInt_mono hden.le
-  simpa [hxH, hyH] using this
+  MonotoneOn (H G) unitInterval := fun _ hx _ hy hxy => by
+  simp only [H_eq_ratio_on_unit hx, H_eq_ratio_on_unit hy]
+  exact div_le_div_of_nonneg_right (HInt_monotone_on_unit hG hpos hx hy hxy) hden.le
 
 lemma H_contDiffOn
   {G : ℝ → ℝ} (hG : ContDiffOn ℝ ∞ G unitInterval) :
-  ContDiffOn ℝ ∞ (H G) unitInterval := by
-  have hNum := HInt_contDiffOn hG
-  have h : ContDiffOn ℝ ∞ (fun x => HInt G x / HInt_denom G) unitInterval :=
-    ContDiffOn.div_const hNum (HInt_denom G)
-  exact (contDiffOn_congr (fun x hx => H_eq_ratio_on_unit (G := G) hx)).mpr h
+  ContDiffOn ℝ ∞ (H G) unitInterval :=
+  (contDiffOn_congr fun _ hx => H_eq_ratio_on_unit hx).mpr ((HInt_contDiffOn hG).div_const _)
 
 private lemma H_eq_ratio_eqOn (G : ℝ → ℝ) :
-    Set.EqOn (H G) (fun z => HInt G z / HInt_denom G) unitInterval := by
-  intro z hz
-  exact H_eq_ratio_on_unit (G := G) hz
+    Set.EqOn (H G) (fun z => HInt G z / HInt_denom G) unitInterval :=
+  fun _ hz => H_eq_ratio_on_unit hz
 
 lemma derivWithin_HInt_eq
     {G : ℝ → ℝ} (hG : ContDiffOn ℝ ∞ G unitInterval)
     {x : ℝ} (hx : x ∈ unitInterval) :
     derivWithin (HInt G) unitInterval x = G x := by
   classical
-  have hx0 : (0 : ℝ) ≤ x := hx.1
-  have hx1 : x ≤ 1 := hx.2
-  have hint : IntervalIntegrable G volume 0 x :=
-    intervalIntegrable_on_unit_segment hG
-      (show (0 : ℝ) ∈ unitInterval by exact ⟨le_rfl, by norm_num⟩) hx hx0
-  have hcont : ContinuousWithinAt G unitInterval x :=
-    hG.continuousOn.continuousWithinAt hx
-  have hmeas :
-      StronglyMeasurableAtFilter G (𝓝[unitInterval] x) volume :=
-    hG.continuousOn.stronglyMeasurableAtFilter_nhdsWithin
-      (hs := isClosed_Icc.measurableSet) x
-  have hxIcc : x ∈ Set.Icc (0 : ℝ) 1 := by simpa [unitInterval] using hx
-  have hFTC :
-      intervalIntegral.FTCFilter x (𝓝[unitInterval] x) (𝓝[unitInterval] x) :=
+  have hint := intervalIntegrable_on_unit_segment hG ⟨le_rfl, by norm_num⟩ hx hx.1
+  have hcont : ContinuousWithinAt G unitInterval x := hG.continuousOn.continuousWithinAt hx
+  have hmeas : StronglyMeasurableAtFilter G (𝓝[unitInterval] x) volume :=
+    hG.continuousOn.stronglyMeasurableAtFilter_nhdsWithin isClosed_Icc.measurableSet x
+  haveI : intervalIntegral.FTCFilter x (𝓝[unitInterval] x) (𝓝[unitInterval] x) :=
     ftcFilter_unitInterval hx
-  haveI : intervalIntegral.FTCFilter x (𝓝[unitInterval] x) (𝓝[unitInterval] x) := hFTC
-  have hEqOn :
-      Set.EqOn (HInt G) (fun z => ∫ t in (0)..z, G t) unitInterval := by
-    intro z hz
-    simpa [HInt] using uIoc_to_intervalIntegral (f := G) hz
-  have hHas :
-      HasDerivWithinAt (fun z => ∫ t in (0)..z, G t) (G x) unitInterval x := by
-    exact intervalIntegral.integral_hasDerivWithinAt_right
-      (a := 0) (b := x) hint hmeas hcont
-  have hDeriv :
-      derivWithin (fun z => ∫ t in (0)..z, G t) unitInterval x = G x :=
-    hHas.derivWithin (uniqueDiffOn_Icc_zero_one x hx)
-  have hcongr :=
-    derivWithin_congr hEqOn (by simpa using hEqOn hx)
-  simpa using hcongr ▸ hDeriv
+  have hEqOn : Set.EqOn (HInt G) (fun z => ∫ t in (0)..z, G t) unitInterval :=
+    fun z hz => by simp [HInt, uIoc_to_intervalIntegral G hz]
+  have hHas := intervalIntegral.integral_hasDerivWithinAt_right (a := 0) (b := x) (s := unitInterval) hint hmeas hcont
+  rw [derivWithin_congr hEqOn (hEqOn hx)]
+  exact hHas.derivWithin (uniqueDiffOn_Icc_zero_one x hx)
 
 lemma iteratedDerivWithin_succ_HInt
     {G : ℝ → ℝ} (hG : ContDiffOn ℝ ∞ G unitInterval)
     {x : ℝ} (hx : x ∈ unitInterval) (n : ℕ) :
     iteratedDerivWithin (n + 1) (HInt G) unitInterval x =
       iteratedDerivWithin n G unitInterval x := by
-  classical
-  have hEq :
-      Set.EqOn (derivWithin (HInt G) unitInterval) G unitInterval :=
-    fun z hz => derivWithin_HInt_eq hG hz
-  have hcongr :=
-    (iteratedDerivWithin_congr (s := unitInterval)
-        (f := derivWithin (HInt G) unitInterval) (g := G)
-        (n := n) hEq) hx
-  simpa [iteratedDerivWithin_succ'] using hcongr
+  simp only [iteratedDerivWithin_succ']
+  exact iteratedDerivWithin_congr (fun z hz => derivWithin_HInt_eq hG hz) hx
 
 lemma iteratedDerivWithin_succ_H
     {G : ℝ → ℝ} (hG : ContDiffOn ℝ ∞ G unitInterval)
     {x : ℝ} (hx : x ∈ unitInterval) (n : ℕ) :
     iteratedDerivWithin (n + 1) (H G) unitInterval x =
-      (1 / HInt_denom G) *
-        iteratedDerivWithin n G unitInterval x := by
-  classical
-  set c := (1 / HInt_denom G) with hc
-  have hEq :
-      Set.EqOn (H G) (fun z => c * HInt G z) unitInterval := by
-    intro z hz
-    have hclamp : clampUnit z = z := clampUnit_of_mem hz
-    simp [H, hclamp, hc, div_eq_mul_inv, mul_comm]
-  have hEq' :=
-    (iteratedDerivWithin_congr (s := unitInterval)
-        (f := H G) (g := fun z => c * HInt G z)
-        (n := n + 1) hEq) hx
-  have hcont :
-      ContDiffWithinAt ℝ ((n : ℕ∞) + 1) (HInt G) unitInterval x :=
-    ((HInt_contDiffOn hG).contDiffWithinAt hx).of_le
-      (by
-        have h : ((n : ℕ∞) + 1 : ℕ∞) ≤ (⊤ : ℕ∞) := le_top
-        exact_mod_cast h)
-  have hconst :
-      iteratedDerivWithin (n + 1) (fun z => c * HInt G z)
-          unitInterval x
-        = c *
-          iteratedDerivWithin (n + 1) (HInt G) unitInterval x := by
-    exact iteratedDerivWithin_const_mul hx uniqueDiffOn_Icc_zero_one c hcont
-  have hHInt :=
-    iteratedDerivWithin_succ_HInt hG hx n
-  calc
-    iteratedDerivWithin (n + 1) (H G) unitInterval x
-        = iteratedDerivWithin (n + 1) (fun z => c * HInt G z)
-            unitInterval x := hEq'
-    _ = c * iteratedDerivWithin (n + 1) (HInt G) unitInterval x := hconst
-    _ = c * iteratedDerivWithin n G unitInterval x := by
-      simpa using congrArg (fun t => c * t) hHInt
-    _ = (1 / HInt_denom G) * iteratedDerivWithin n G unitInterval x := by
-      simp [hc, div_eq_mul_inv, mul_comm]
+      (1 / HInt_denom G) * iteratedDerivWithin n G unitInterval x := by
+  set c := (1 / HInt_denom G)
+  have hEq : Set.EqOn (H G) (fun z => c * HInt G z) unitInterval := fun z hz => by
+    simp [H, clampUnit_of_mem hz, c, div_eq_mul_inv, mul_comm]
+  have hcont : ContDiffWithinAt ℝ (↑(n + 1)) (HInt G) unitInterval x :=
+    (HInt_contDiffOn hG).contDiffWithinAt hx |>.of_le (by exact_mod_cast le_top)
+  calc iteratedDerivWithin (n + 1) (H G) unitInterval x
+      = iteratedDerivWithin (n + 1) (fun z => c * HInt G z) unitInterval x :=
+          iteratedDerivWithin_congr hEq hx
+    _ = c * iteratedDerivWithin (n + 1) (HInt G) unitInterval x :=
+          iteratedDerivWithin_const_mul hx uniqueDiffOn_Icc_zero_one c hcont
+    _ = c * iteratedDerivWithin n G unitInterval x := by rw [iteratedDerivWithin_succ_HInt hG hx]
 
 lemma H_deriv_vanishes_at_point_from_G
     {G : ℝ → ℝ} (hG : ContDiffOn ℝ ∞ G unitInterval)
-    {x : ℝ} (hx : x ∈ unitInterval)
-    (hG_x : G x = 0)
-    (hG_deriv_x :
-      ∀ n : ℕ, 1 ≤ n → iteratedDerivWithin n G unitInterval x = 0) :
+    {x : ℝ} (hx : x ∈ unitInterval) (hG_x : G x = 0)
+    (hG_deriv_x : ∀ n : ℕ, 1 ≤ n → iteratedDerivWithin n G unitInterval x = 0) :
     ∀ n : ℕ, 1 ≤ n → iteratedDerivWithin n (H G) unitInterval x = 0 := by
-  classical
   intro n hn
-  have hn0 : n ≠ 0 := by
-    intro h
-    have : 1 ≤ 0 := by simp [h] at hn
-    exact Nat.not_succ_le_self 0 this
-  obtain ⟨k, rfl⟩ := Nat.exists_eq_succ_of_ne_zero hn0
-  have hformula :=
-    iteratedDerivWithin_succ_H hG hx k
-  cases k with
-  | zero =>
-      simp [hformula, hG_x]
-  | succ k =>
-      have hk :
-          iteratedDerivWithin (Nat.succ k) G unitInterval x = 0 :=
-        hG_deriv_x _ (Nat.succ_pos _)
-      simp [hformula, hk]
+  obtain ⟨k, rfl⟩ := Nat.exists_eq_succ_of_ne_zero (Nat.one_le_iff_ne_zero.mp hn)
+  simp only [iteratedDerivWithin_succ_H hG hx k]
+  rcases k with _ | k <;> simp [hG_x, hG_deriv_x _ (Nat.succ_pos _)]
 
 lemma H_deriv_vanishes_at_zero_from_G
     {G : ℝ → ℝ} (hG : ContDiffOn ℝ ∞ G unitInterval)
     (hG_zero : G 0 = 0)
-    (hG_deriv_zero :
-      ∀ n : ℕ, 1 ≤ n → iteratedDerivWithin n G unitInterval 0 = 0) :
-    ∀ n : ℕ, 1 ≤ n → iteratedDerivWithin n (H G) unitInterval 0 = 0 := by
-  have hx0 : (0 : ℝ) ∈ unitInterval := ⟨le_rfl, by norm_num⟩
-  exact H_deriv_vanishes_at_point_from_G hG hx0 hG_zero hG_deriv_zero
+    (hG_deriv_zero : ∀ n : ℕ, 1 ≤ n → iteratedDerivWithin n G unitInterval 0 = 0) :
+    ∀ n : ℕ, 1 ≤ n → iteratedDerivWithin n (H G) unitInterval 0 = 0 :=
+  H_deriv_vanishes_at_point_from_G hG ⟨le_rfl, by norm_num⟩ hG_zero hG_deriv_zero
 
 lemma H_deriv_vanishes_at_one_from_G
     {G : ℝ → ℝ} (hG : ContDiffOn ℝ ∞ G unitInterval)
     (hG_one : G 1 = 0)
-    (hG_deriv_one :
-      ∀ n : ℕ, 1 ≤ n → iteratedDerivWithin n G unitInterval 1 = 0) :
-    ∀ n : ℕ, 1 ≤ n → iteratedDerivWithin n (H G) unitInterval 1 = 0 := by
-  have hx1 : (1 : ℝ) ∈ unitInterval := ⟨zero_le_one, le_rfl⟩
-  exact H_deriv_vanishes_at_point_from_G hG hx1 hG_one hG_deriv_one
+    (hG_deriv_one : ∀ n : ℕ, 1 ≤ n → iteratedDerivWithin n G unitInterval 1 = 0) :
+    ∀ n : ℕ, 1 ≤ n → iteratedDerivWithin n (H G) unitInterval 1 = 0 :=
+  H_deriv_vanishes_at_point_from_G hG ⟨zero_le_one, le_rfl⟩ hG_one hG_deriv_one
 
 -- H maps to [0,1] on unitInterval
 lemma H_mem_unitInterval
@@ -359,19 +212,9 @@ lemma H_mem_unitInterval
   {z : ℝ} (hz : z ∈ unitInterval) :
   H G z ∈ unitInterval := by
   have hHmono := H_monotone_on_unit hG hpos hden
-  have h0 : (0 : ℝ) ∈ unitInterval := ⟨le_rfl, by norm_num⟩
-  have h1 : (1 : ℝ) ∈ unitInterval := ⟨zero_le_one, le_rfl⟩
-  have hH0 : H G 0 = 0 := H_zero G
-  have hH1 : H G 1 = 1 := H_one G hden.ne'
-  have hz0 : 0 ≤ z := hz.1
-  have hz1 : z ≤ 1 := hz.2
-  have hH_z_ge_0 : 0 ≤ H G z := by
-    have := hHmono h0 hz hz0
-    rwa [hH0] at this
-  have hH_z_le_1 : H G z ≤ 1 := by
-    have := hHmono hz h1 hz1
-    rwa [hH1] at this
-  exact ⟨hH_z_ge_0, hH_z_le_1⟩
+  constructor
+  · simpa [H_zero G] using hHmono ⟨le_rfl, by norm_num⟩ hz hz.1
+  · simpa [H_one G hden.ne'] using hHmono hz ⟨zero_le_one, le_rfl⟩ hz.2
 
 -- The curvature function κ(s) = R₁ + (R₂ - R₁) H(s/L)
 noncomputable def kappaOfShape (H : ℝ → ℝ) (s R₁ R₂ L : ℝ) : ℝ :=
@@ -381,127 +224,69 @@ noncomputable def kappa (G : ℝ → ℝ) (s R₁ R₂ L : ℝ) : ℝ :=
   kappaOfShape (H G) s R₁ R₂ L
 
 lemma div_mem_unitInterval_of_mem_Icc {L : ℝ} (hL : 0 < L) {s : ℝ}
-    (hs : s ∈ Set.Icc 0 L) : s / L ∈ unitInterval := by
-  rcases hs with ⟨hs0, hsL⟩
-  refine ⟨div_nonneg hs0 (le_of_lt hL), ?_⟩
-  have hLne : L ≠ 0 := ne_of_gt hL
-  have : s / L ≤ L / L := div_le_div_of_nonneg_right hsL (le_of_lt hL)
-  simpa [div_self hLne] using this
+    (hs : s ∈ Set.Icc 0 L) : s / L ∈ unitInterval :=
+  ⟨div_nonneg hs.1 hL.le, by simpa [div_self hL.ne'] using div_le_div_of_nonneg_right hs.2 hL.le⟩
 
 lemma kappaOfShape_contDiffOn
   {H : ℝ → ℝ} (hH : ContDiffOn ℝ ∞ H unitInterval)
   (R₁ R₂ L : ℝ) (hL : 0 < L) :
   ContDiffOn ℝ ∞ (fun s => kappaOfShape H s R₁ R₂ L) (Set.Icc 0 L) := by
-  have hmap :
-      ∀ ⦃s⦄, s ∈ Set.Icc 0 L → s / L ∈ unitInterval := by
-    intro s hs
-    exact div_mem_unitInterval_of_mem_Icc hL hs
-  have hcomp : ContDiffOn ℝ ∞ (fun s => H (s / L)) (Set.Icc 0 L) :=
-    hH.comp (contDiffOn_id.div_const L) (fun s hs => hmap hs)
-  let g : ℝ → ℝ := fun s => (R₂ - R₁) * H (s / L)
-  have hscale :
-      ContDiffOn ℝ ∞ g (Set.Icc 0 L) :=
-    contDiffOn_const.mul hcomp
-  have hsum :
-      ContDiffOn ℝ ∞ (fun s : ℝ => (fun _ : ℝ => R₁) s + g s)
-        (Set.Icc 0 L) :=
-    contDiffOn_const.add hscale
-  have hsum' :
-      ContDiffOn ℝ ∞ (fun s : ℝ => R₁ + g s)
-        (Set.Icc 0 L) := by
-    refine (contDiffOn_congr ?_).mp hsum
-    intro x hx
-    simp
-  simpa [kappaOfShape, g, add_comm, add_left_comm, add_assoc] using hsum'
+  have hcomp := hH.comp (contDiffOn_id.div_const L) fun s hs => div_mem_unitInterval_of_mem_Icc hL hs
+  simpa [kappaOfShape] using contDiffOn_const.add (contDiffOn_const.mul hcomp)
 
 lemma kappa_contDiffOn
   {G : ℝ → ℝ} (hG : ContDiffOn ℝ ∞ G unitInterval)
   (R₁ R₂ L : ℝ) (hL : 0 < L) :
-  ContDiffOn ℝ ∞ (fun s => kappa G s R₁ R₂ L) (Set.Icc 0 L) := by
-  simpa [kappa, kappaOfShape] using
-    kappaOfShape_contDiffOn (H := H G) (R₁ := R₁) (R₂ := R₂)
-      (L := L) (hH := H_contDiffOn hG) hL
+  ContDiffOn ℝ ∞ (fun s => kappa G s R₁ R₂ L) (Set.Icc 0 L) :=
+  kappaOfShape_contDiffOn (H_contDiffOn hG) R₁ R₂ L hL
 
 lemma kappaOfShape_at_zero (H : ℝ → ℝ) (R₁ R₂ L : ℝ) (hH0 : H 0 = 0) :
-    kappaOfShape H 0 R₁ R₂ L = R₁ := by
-  simp [kappaOfShape, hH0]
+    kappaOfShape H 0 R₁ R₂ L = R₁ := by simp [kappaOfShape, hH0]
 
 lemma kappa_at_zero (G : ℝ → ℝ) (R₁ R₂ L : ℝ) :
-    kappa G 0 R₁ R₂ L = R₁ := by
-  simpa [kappa, kappaOfShape] using
-    kappaOfShape_at_zero (H := H G) R₁ R₂ L (H_zero G)
+    kappa G 0 R₁ R₂ L = R₁ := kappaOfShape_at_zero (H G) R₁ R₂ L (H_zero G)
 
-lemma kappaOfShape_at_L
-    (H : ℝ → ℝ) (R₁ R₂ L : ℝ) (hL : L ≠ 0) (hH1 : H 1 = 1) :
-    kappaOfShape H L R₁ R₂ L = R₂ := by
-  have hdiv : L / L = 1 := div_self hL
-  simp [kappaOfShape, hdiv, hH1]
+lemma kappaOfShape_at_L (H : ℝ → ℝ) (R₁ R₂ L : ℝ) (hL : L ≠ 0) (hH1 : H 1 = 1) :
+    kappaOfShape H L R₁ R₂ L = R₂ := by simp [kappaOfShape, div_self hL, hH1]
 
-lemma kappa_at_L
-    (G : ℝ → ℝ) (R₁ R₂ L : ℝ) (hL : L ≠ 0) (hden : HInt_denom G ≠ 0) :
-    kappa G L R₁ R₂ L = R₂ := by
-  simpa [kappa, kappaOfShape] using
-    kappaOfShape_at_L (H := H G) R₁ R₂ L hL (H_one (G := G) hden)
+lemma kappa_at_L (G : ℝ → ℝ) (R₁ R₂ L : ℝ) (hL : L ≠ 0) (hden : HInt_denom G ≠ 0) :
+    kappa G L R₁ R₂ L = R₂ := kappaOfShape_at_L (H G) R₁ R₂ L hL (H_one G hden)
 
 -- Helper lemma for the common setup in monotonicity proofs
 private lemma kappa_inequality_helper_of_shape
-    {H : ℝ → ℝ} (hmono : MonotoneOn H unitInterval)
-    (L : ℝ) (hL : 0 < L)
+    {H : ℝ → ℝ} (hmono : MonotoneOn H unitInterval) (L : ℝ) (hL : 0 < L)
     (x y : ℝ) (hx : x ∈ Set.Icc 0 L) (hy : y ∈ Set.Icc 0 L) (hxy : x ≤ y) :
-    H (x / L) ≤ H (y / L) := by
-  have hxmap : x / L ∈ unitInterval :=
-    div_mem_unitInterval_of_mem_Icc hL hx
-  have hymap : y / L ∈ unitInterval :=
-    div_mem_unitInterval_of_mem_Icc hL hy
-  have hxy_div : x / L ≤ y / L :=
-    div_le_div_of_nonneg_right hxy (le_of_lt hL)
-  exact hmono hxmap hymap hxy_div
+    H (x / L) ≤ H (y / L) :=
+  hmono (div_mem_unitInterval_of_mem_Icc hL hx) (div_mem_unitInterval_of_mem_Icc hL hy)
+    (div_le_div_of_nonneg_right hxy hL.le)
 
 lemma kappaOfShape_monotone_on_Icc
     {H : ℝ → ℝ} (hHmono : MonotoneOn H unitInterval)
     (R₁ R₂ L : ℝ) (hL : 0 < L) (hmono : R₁ ≤ R₂) :
-    MonotoneOn (fun s => kappaOfShape H s R₁ R₂ L) (Set.Icc 0 L) := by
-  intro x hx y hy hxy
-  have hcmp := kappa_inequality_helper_of_shape hHmono L hL x y hx hy hxy
-  have hΔ : 0 ≤ R₂ - R₁ := sub_nonneg.mpr hmono
-  have hscaled :
-      (R₂ - R₁) * H (x / L) ≤ (R₂ - R₁) * H (y / L) :=
-    mul_le_mul_of_nonneg_left hcmp hΔ
-  have := add_le_add_left hscaled R₁
-  simpa [kappaOfShape, add_comm, add_left_comm, add_assoc] using this
+    MonotoneOn (fun s => kappaOfShape H s R₁ R₂ L) (Set.Icc 0 L) := fun _ hx _ hy hxy =>
+  add_le_add_right (mul_le_mul_of_nonneg_left
+    (kappa_inequality_helper_of_shape hHmono L hL _ _ hx hy hxy) (sub_nonneg.mpr hmono)) R₁
 
 lemma kappa_monotone_on_Icc
     {G : ℝ → ℝ} (hG : ContDiffOn ℝ ∞ G unitInterval)
     (hpos : ∀ x ∈ Set.Ioo 0 1, 0 < G x)
     (R₁ R₂ L : ℝ) (hL : 0 < L) (hden : 0 < HInt_denom G) (hmono : R₁ ≤ R₂) :
-    MonotoneOn (fun s => kappa G s R₁ R₂ L) (Set.Icc 0 L) := by
-  have hmonoH := H_monotone_on_unit hG hpos hden
-  simpa [kappa, kappaOfShape] using
-    kappaOfShape_monotone_on_Icc (H := H G) (hHmono := hmonoH)
-      (R₁ := R₁) (R₂ := R₂) (L := L) hL hmono
+    MonotoneOn (fun s => kappa G s R₁ R₂ L) (Set.Icc 0 L) :=
+  kappaOfShape_monotone_on_Icc (H_monotone_on_unit hG hpos hden) R₁ R₂ L hL hmono
 
 lemma kappaOfShape_antitone_on_Icc
     {H : ℝ → ℝ} (hHmono : MonotoneOn H unitInterval)
     (R₁ R₂ L : ℝ) (hL : 0 < L) (hmono : R₂ ≤ R₁) :
-    AntitoneOn (fun s => kappaOfShape H s R₁ R₂ L) (Set.Icc 0 L) := by
-  intro x hx y hy hxy
-  have hcmp := kappa_inequality_helper_of_shape hHmono L hL x y hx hy hxy
-  have hΔ : R₂ - R₁ ≤ 0 := sub_nonpos.mpr hmono
-  have hscaled :
-      (R₂ - R₁) * H (y / L) ≤ (R₂ - R₁) * H (x / L) :=
-    mul_le_mul_of_nonpos_left hcmp hΔ
-  have := add_le_add_left hscaled R₁
-  simpa [kappaOfShape, add_comm, add_left_comm, add_assoc] using this
+    AntitoneOn (fun s => kappaOfShape H s R₁ R₂ L) (Set.Icc 0 L) := fun _ hx _ hy hxy =>
+  add_le_add_right (mul_le_mul_of_nonpos_left
+    (kappa_inequality_helper_of_shape hHmono L hL _ _ hx hy hxy) (sub_nonpos.mpr hmono)) R₁
 
 lemma kappa_antitone_on_Icc
     {G : ℝ → ℝ} (hG : ContDiffOn ℝ ∞ G unitInterval)
     (hpos : ∀ x ∈ Set.Ioo 0 1, 0 < G x)
     (R₁ R₂ L : ℝ) (hL : 0 < L) (hden : 0 < HInt_denom G) (hmono : R₂ ≤ R₁) :
-    AntitoneOn (fun s => kappa G s R₁ R₂ L) (Set.Icc 0 L) := by
-  have hmonoH := H_monotone_on_unit hG hpos hden
-  simpa [kappa, kappaOfShape] using
-    kappaOfShape_antitone_on_Icc (H := H G) (hHmono := hmonoH)
-      (R₁ := R₁) (R₂ := R₂) (L := L) hL hmono
+    AntitoneOn (fun s => kappa G s R₁ R₂ L) (Set.Icc 0 L) :=
+  kappaOfShape_antitone_on_Icc (H_monotone_on_unit hG hpos hden) R₁ R₂ L hL hmono
 
 section SmoothStepStructure
 
@@ -539,44 +324,6 @@ structure SmoothstepCurve where
   H_deriv_vanishes_at_zero : ∀ n : ℕ, n ≥ 1 → iteratedDerivWithin n H unitInterval 0 = 0
   H_deriv_vanishes_at_one : ∀ n : ℕ, n ≥ 1 → iteratedDerivWithin n H unitInterval 1 = 0
 
-noncomputable def mkSmoothstepCurve (G : ℝ → ℝ) (hG : ContDiffOn ℝ ∞ G unitInterval)
-  (hpos : ∀ x ∈ Set.Ioo 0 1, 0 < G x) (hG_zero : G 0 = 0) (hG_one : G 1 = 0)
-  (hG_deriv_zero : ∀ n : ℕ, n ≥ 1 → iteratedDerivWithin n G unitInterval 0 = 0)
-  (hG_deriv_one : ∀ n : ℕ, n ≥ 1 → iteratedDerivWithin n G unitInterval 1 = 0) : SmoothstepCurve :=
-  let hfi : IntervalIntegrable G volume 0 1 :=
-    hG.continuousOn.intervalIntegrable_of_Icc (μ := volume) (a := 0) (b := 1) (by norm_num)
-  let hden : 0 < HInt_denom G := HInt_denom_pos hfi hpos
-  {
-    H := H G,
-    κ := fun s R₁ R₂ L => kappa G s R₁ R₂ L,
-    H_is_C_inf := H_contDiffOn hG,
-    H_zero := H_zero G,
-    H_one := H_one G hden.ne',
-    H_mem_unitInterval := by
-      intro z hz
-      exact H_mem_unitInterval hG hpos hden hz,
-    κ_is_C_inf := fun R₁ R₂ L hL => kappa_contDiffOn hG R₁ R₂ L hL,
-    κ_at_zero := fun R₁ R₂ L => kappa_at_zero G R₁ R₂ L,
-    κ_at_L := fun R₁ R₂ L hL => by
-      have hden_ne : HInt_denom G ≠ 0 := hden.ne'
-      exact kappa_at_L G R₁ R₂ L hL hden_ne,
-    κ_formula := by
-      intro s R₁ R₂ L
-      simp [kappa, kappaOfShape],
-    H_monotone_on_unit := by
-      exact H_monotone_on_unit hG hpos hden,
-    κ_monotone_on_Icc := by
-      intro R₁ R₂ L hL hmono
-      exact kappa_monotone_on_Icc hG hpos R₁ R₂ L hL hden hmono,
-    κ_antitone_on_Icc := by
-      intro R₁ R₂ L hL hmono
-      exact kappa_antitone_on_Icc hG hpos R₁ R₂ L hL hden hmono,
-    H_deriv_vanishes_at_zero :=
-      H_deriv_vanishes_at_zero_from_G hG hG_zero hG_deriv_zero,
-    H_deriv_vanishes_at_one :=
-      H_deriv_vanishes_at_one_from_G hG hG_one hG_deriv_one
-  }
-
 /-- Constructor that takes an abstract shape function satisfying the four core properties. -/
 noncomputable def mkSmoothstepCurveFromShape (H : ℝ → ℝ)
   (hH_smooth : ContDiffOn ℝ ∞ H unitInterval)
@@ -592,34 +339,34 @@ noncomputable def mkSmoothstepCurveFromShape (H : ℝ → ℝ)
     H_is_C_inf := hH_smooth,
     H_zero := hH_zero,
     H_one := hH_one,
-    H_mem_unitInterval := by
-      intro z hz
-      exact hH_mem hz,
-    κ_is_C_inf := by
-      intro R₁ R₂ L hL
-      exact kappaOfShape_contDiffOn (H := H) (hH := hH_smooth)
-        (R₁ := R₁) (R₂ := R₂) (L := L) hL,
-    κ_at_zero := by
-      intro R₁ R₂ L
-      exact kappaOfShape_at_zero (H := H) R₁ R₂ L hH_zero,
-    κ_at_L := by
-      intro R₁ R₂ L hL
-      exact kappaOfShape_at_L (H := H) R₁ R₂ L hL hH_one,
-    κ_formula := by
-      intro s R₁ R₂ L
-      simp [kappaOfShape],
+    H_mem_unitInterval := hH_mem,
+    κ_is_C_inf := fun R₁ R₂ L hL => kappaOfShape_contDiffOn hH_smooth R₁ R₂ L hL,
+    κ_at_zero := fun R₁ R₂ L => kappaOfShape_at_zero H R₁ R₂ L hH_zero,
+    κ_at_L := fun R₁ R₂ L hL => kappaOfShape_at_L H R₁ R₂ L hL hH_one,
+    κ_formula := fun _ _ _ _ => rfl,
     H_monotone_on_unit := hH_mono,
-    κ_monotone_on_Icc := by
-      intro R₁ R₂ L hL hmono
-      exact kappaOfShape_monotone_on_Icc (H := H) (hHmono := hH_mono)
-        (R₁ := R₁) (R₂ := R₂) (L := L) hL hmono,
-    κ_antitone_on_Icc := by
-      intro R₁ R₂ L hL hmono
-      exact kappaOfShape_antitone_on_Icc (H := H) (hHmono := hH_mono)
-        (R₁ := R₁) (R₂ := R₂) (L := L) hL hmono,
+    κ_monotone_on_Icc := fun R₁ R₂ L hL hmono => kappaOfShape_monotone_on_Icc hH_mono R₁ R₂ L hL hmono,
+    κ_antitone_on_Icc := fun R₁ R₂ L hL hmono => kappaOfShape_antitone_on_Icc hH_mono R₁ R₂ L hL hmono,
     H_deriv_vanishes_at_zero := hH_deriv_zero,
     H_deriv_vanishes_at_one := hH_deriv_one
   }
+
+/-- Constructor from bump function G. Derives H as the normalized primitive of G. -/
+noncomputable def mkSmoothstepCurve (G : ℝ → ℝ) (hG : ContDiffOn ℝ ∞ G unitInterval)
+  (hpos : ∀ x ∈ Set.Ioo 0 1, 0 < G x) (hG_zero : G 0 = 0) (hG_one : G 1 = 0)
+  (hG_deriv_zero : ∀ n : ℕ, n ≥ 1 → iteratedDerivWithin n G unitInterval 0 = 0)
+  (hG_deriv_one : ∀ n : ℕ, n ≥ 1 → iteratedDerivWithin n G unitInterval 1 = 0) : SmoothstepCurve :=
+  let hfi : IntervalIntegrable G volume 0 1 :=
+    hG.continuousOn.intervalIntegrable_of_Icc (μ := volume) (a := 0) (b := 1) (by norm_num)
+  let hden : 0 < HInt_denom G := HInt_denom_pos hfi hpos
+  mkSmoothstepCurveFromShape (H G)
+    (H_contDiffOn hG)
+    (H_zero G)
+    (H_one G hden.ne')
+    (fun {z} hz => H_mem_unitInterval hG hpos hden hz)
+    (H_monotone_on_unit hG hpos hden)
+    (H_deriv_vanishes_at_zero_from_G hG hG_zero hG_deriv_zero)
+    (H_deriv_vanishes_at_one_from_G hG hG_one hG_deriv_one)
 
 -- Helper lemmas for expNegInvGlue compositions
 -- These show that H has vanishing derivatives when G = expNegInvGlue ∘ denom,
@@ -644,80 +391,26 @@ lemma iteratedDerivWithin_zero_fun_all {s : Set ℝ} {n : ℕ} :
 
 lemma iteratedDeriv_expNegInvGlue_nonpos :
     ∀ (n : ℕ) {x : ℝ}, x ≤ 0 → iteratedDeriv n expNegInvGlue x = 0 := by
-  classical
   intro n
   induction n with
-  | zero =>
-    intro x hx
-    exact expNegInvGlue.zero_of_nonpos hx
+  | zero => exact expNegInvGlue.zero_of_nonpos
   | succ n hn =>
     intro x hx
-    have hSucc :
-        iteratedDeriv (n.succ) expNegInvGlue =
-          deriv (iteratedDeriv n expNegInvGlue) :=
-      iteratedDeriv_succ (n := n) (f := expNegInvGlue)
-    rcases lt_or_eq_of_le hx with hxlt | rfl
-    · have hxmem : x ∈ Set.Iio (0 : ℝ) := hxlt
-      have hEq :
-          Set.EqOn (iteratedDeriv n expNegInvGlue) (fun _ => (0 : ℝ)) (Set.Iio (0 : ℝ)) := by
-        intro y hy
-        exact hn (le_of_lt hy)
-      have hopen : IsOpen (Set.Iio (0 : ℝ)) := isOpen_Iio
-      have hDerivEq :
-          Set.EqOn (deriv (iteratedDeriv n expNegInvGlue)) (deriv fun _ => (0 : ℝ))
-            (Set.Iio (0 : ℝ)) :=
-        Set.EqOn.deriv hEq hopen
-      have hDerivZero :
-          deriv (iteratedDeriv n expNegInvGlue) x = 0 := by
-        have := hDerivEq hxmem
-        simpa using this
-      have hxval :=
-        congrArg (fun g => g x) hSucc
-      simp [hxval, hDerivZero]
-    · have hconst :
-          (fun x => slope (iteratedDeriv n expNegInvGlue) 0 x) =ᶠ[𝓝[Set.Iio (0 : ℝ)] 0]
-            fun _ => (0 : ℝ) :=
-        slope_zero_of_left_const fun y hy => by
-          rw [hn hy, hn (x:=0) le_rfl]
-      have hDiff :
-          HasDerivAt (iteratedDeriv n expNegInvGlue)
-            (iteratedDeriv (Nat.succ n) expNegInvGlue 0) 0 := by
-        have hC :
-            ContDiff ℝ (n + 1) expNegInvGlue :=
-          (expNegInvGlue.contDiff.of_le (by
-            have h : ((n + 1 : ℕ∞) ≤ (⊤ : ℕ∞)) := le_top
-            exact_mod_cast h))
-        have hd :
-            Differentiable ℝ (iteratedDeriv n expNegInvGlue) :=
-          ContDiff.differentiable_iteratedDeriv' (m := n) hC
-        have hHas : HasDerivAt (iteratedDeriv n expNegInvGlue)
-            (deriv (iteratedDeriv n expNegInvGlue) 0) 0 :=
-          (hd 0).hasDerivAt
-        simpa [iteratedDeriv_succ] using hHas
-      have hmono :
-          𝓝[Set.Iio (0 : ℝ)] 0 ≤ 𝓝[{x | x ≠ (0 : ℝ)}] 0 :=
-        nhdsWithin_mono _ fun x hx => ne_of_lt hx
-      have hLim :
-          Filter.Tendsto (fun x => slope (iteratedDeriv n expNegInvGlue) 0 x)
-            (𝓝[{x | x ≠ (0 : ℝ)}] 0)
-            (𝓝 (iteratedDeriv (Nat.succ n) expNegInvGlue 0)) :=
-        hDiff.tendsto_slope
-      have hConstLim :
-          Filter.Tendsto (fun x => slope (iteratedDeriv n expNegInvGlue) 0 x)
-            (𝓝[Set.Iio (0 : ℝ)] 0) (𝓝 (0 : ℝ)) :=
-        (tendsto_const_nhds : Filter.Tendsto (fun _ => (0 : ℝ)) _ _).congr' hconst.symm
-      have hclosure :
-          (0 : ℝ) ∈ closure (Set.Iio (0 : ℝ)) := by
-        have : (0 : ℝ) ≤ 0 := le_rfl
-        simp [closure_Iio, Set.Iic, Set.mem_setOf_eq]
-      have hNeBot :
-          NeBot (𝓝[Set.Iio (0 : ℝ)] (0 : ℝ)) :=
-        mem_closure_iff_nhdsWithin_neBot.mp hclosure
-      have hLim' := (hLim.mono_left hmono)
-      haveI : NeBot (𝓝[Set.Iio (0 : ℝ)] (0 : ℝ)) := hNeBot
-      have :=
-        tendsto_nhds_unique hLim' hConstLim
-      simpa using this
+    simp only [iteratedDeriv_succ]
+    rcases hx.lt_or_eq with hxlt | rfl
+    · -- x < 0: deriv is 0 on open set where function is constant
+      have heq : Set.EqOn (iteratedDeriv n expNegInvGlue) (fun _ => 0) (Set.Iio 0) :=
+        fun _ hy => hn hy.le
+      simpa using Set.EqOn.deriv heq isOpen_Iio hxlt
+    · -- x = 0: use limit argument
+      have hconst := slope_zero_of_left_const fun y hy => (hn hy).trans (hn le_rfl).symm
+      have hDiff : HasDerivAt (iteratedDeriv n expNegInvGlue) (deriv (iteratedDeriv n expNegInvGlue) 0) 0 :=
+        ((expNegInvGlue.contDiff.of_le (by exact_mod_cast le_top)).differentiable_iteratedDeriv' (m := n) 0).hasDerivAt
+      have hNeBot : NeBot (𝓝[Set.Iio 0] (0 : ℝ)) :=
+        mem_closure_iff_nhdsWithin_neBot.mp (by simp [closure_Iio])
+      exact tendsto_nhds_unique
+        (hDiff.tendsto_slope.mono_left (nhdsWithin_mono _ fun _ h => h.ne))
+        (tendsto_const_nhds.congr' hconst.symm)
 
 lemma iteratedDeriv_expNegInvGlue_zero (n : ℕ) :
     iteratedDeriv n expNegInvGlue 0 = 0 :=
@@ -729,46 +422,20 @@ lemma iteratedDeriv_comp_expNegInvGlue_at
     ∀ n : ℕ, iteratedDeriv n (fun t => expNegInvGlue (denom t)) a = 0 := by
   classical
   intro n
-  have hgAt :
-      ContDiffAt ℝ (⊤ : ℕ∞) expNegInvGlue (denom a) :=
-    expNegInvGlue.contDiff.contDiffAt
-  have hfAt : ContDiffAt ℝ (⊤ : ℕ∞) denom a :=
-    hdenom.contDiffAt
-  have hsum :=
-    iteratedDeriv_comp_eq_sum_orderedFinpartition
-      (n := (⊤ : ℕ∞))
-      (hi := by
-        have h : (n : ℕ∞) ≤ (⊤ : ℕ∞) := le_top
-        exact_mod_cast h)
-      (g := expNegInvGlue) (f := denom) (x := a)
-      (hg := hgAt) (hf := hfAt)
-  have hzero :
-      ∀ c : OrderedFinpartition n,
-        iteratedDeriv c.length expNegInvGlue (denom a) = 0 := by
-    intro c
-    simpa [ha] using iteratedDeriv_expNegInvGlue_zero (c.length)
-  simpa [Function.comp, hzero] using hsum
+  have hsum := iteratedDeriv_comp_eq_sum_orderedFinpartition (n := (⊤ : ℕ∞)) (i := n)
+    (hi := by exact_mod_cast le_top) (g := expNegInvGlue) (f := denom) (x := a)
+    (hg := expNegInvGlue.contDiff.contDiffAt) (hf := hdenom.contDiffAt)
+  simp only [ha, iteratedDeriv_expNegInvGlue_zero, zero_mul, Finset.sum_const_zero] at hsum
+  exact hsum
 
 lemma iteratedDerivWithin_expNegInvGlue_comp_of_mem
     {denom : ℝ → ℝ} (hdenom : ContDiff ℝ ∞ denom)
     {a : ℝ} (ha : denom a = 0) (ha_mem : a ∈ unitInterval) :
-    ∀ n : ℕ, iteratedDerivWithin n (fun t => expNegInvGlue (denom t)) unitInterval a = 0 := by
-  intro n
-  have hcontTop :
-      ContDiffAt ℝ (⊤ : ℕ∞) (fun t => expNegInvGlue (denom t)) a :=
-    (expNegInvGlue.contDiff.comp hdenom).contDiffAt
-  have hcont :
-      ContDiffAt ℝ n (fun t => expNegInvGlue (denom t)) a := by
-    have h : (n : ℕ∞) ≤ (⊤ : ℕ∞) := le_top
-    simpa using hcontTop.of_le (by exact_mod_cast h)
-  have hs : UniqueDiffOn ℝ unitInterval := by
-    simpa [unitInterval] using uniqueDiffOn_Icc (show (0 : ℝ) < 1 by norm_num)
-  have hEq :
-      iteratedDerivWithin n (fun t => expNegInvGlue (denom t)) unitInterval a =
-        iteratedDeriv n (fun t => expNegInvGlue (denom t)) a :=
-    iteratedDerivWithin_eq_iteratedDeriv (hs := hs) (h := hcont) (hx := ha_mem)
-  have hzero := iteratedDeriv_comp_expNegInvGlue_at hdenom ha n
-  simpa [hEq] using hzero
+    ∀ n : ℕ, iteratedDerivWithin n (fun t => expNegInvGlue (denom t)) unitInterval a = 0 := fun n =>
+  (iteratedDerivWithin_eq_iteratedDeriv
+    (hs := uniqueDiffOn_Icc_zero_one) (hx := ha_mem)
+    (h := ((expNegInvGlue.contDiff.comp hdenom).contDiffAt).of_le (by exact_mod_cast le_top))).trans
+    (iteratedDeriv_comp_expNegInvGlue_at hdenom ha n)
 
 lemma H_deriv_vanishes_at_endpoint_expNegInvGlue_comp
   {denom : ℝ → ℝ} (hdenom_contDiff : ContDiff ℝ ∞ denom)
@@ -776,76 +443,37 @@ lemma H_deriv_vanishes_at_endpoint_expNegInvGlue_comp
   ∀ n : ℕ, n ≥ 1 →
       iteratedDerivWithin n (H (fun t => expNegInvGlue (denom t))) unitInterval a = 0 := by
   let G := fun t => expNegInvGlue (denom t)
-  have hG : ContDiffOn ℝ ∞ G unitInterval :=
-    (expNegInvGlue.contDiff.comp hdenom_contDiff).contDiffOn
+  have hG : ContDiffOn ℝ ∞ G unitInterval := (expNegInvGlue.contDiff.comp hdenom_contDiff).contDiffOn
   intro n hn
   by_cases hden : HInt_denom G = 0
-  · have hH : ∀ x, H G x = 0 := by simp [H, hden]
-    rw [iteratedDerivWithin_congr (f := H G) (g := fun _ => 0) (s := unitInterval) (n := n) (by intro x hx; exact hH x)]
-    · apply iteratedDerivWithin_zero_fun_all
-    · simpa [unitInterval] using ha_mem
-  · have hvan :=
-      H_deriv_vanishes_at_point_from_G hG ha_mem
-        (by simp [G, ha_zero, expNegInvGlue.zero])
-        (by
-          intro k hk
-          exact
-            iteratedDerivWithin_expNegInvGlue_comp_of_mem
-              hdenom_contDiff ha_zero ha_mem k)
-    exact hvan n hn
+  · have hH : ∀ x, H G x = 0 := fun x => by simp [H, hden]
+    rw [iteratedDerivWithin_congr (fun x _ => hH x) ha_mem]
+    exact iteratedDerivWithin_zero_fun_all _
+  · exact H_deriv_vanishes_at_point_from_G hG ha_mem (by simp [G, ha_zero, expNegInvGlue.zero])
+      (fun k _ => iteratedDerivWithin_expNegInvGlue_comp_of_mem hdenom_contDiff ha_zero ha_mem k) n hn
 
 lemma H_deriv_vanishes_at_zero_expNegInvGlue_comp
   {denom : ℝ → ℝ} (hdenom_contDiff : ContDiff ℝ ∞ denom)
   (hdenom_zero : denom 0 = 0) :
-  ∀ n : ℕ, n ≥ 1 → iteratedDerivWithin n (H (fun t => expNegInvGlue (denom t))) unitInterval 0 = 0 := by
-  have hmem : (0 : ℝ) ∈ unitInterval := ⟨le_rfl, by norm_num⟩
-  exact
-    H_deriv_vanishes_at_endpoint_expNegInvGlue_comp hdenom_contDiff hmem hdenom_zero
+  ∀ n : ℕ, n ≥ 1 → iteratedDerivWithin n (H (fun t => expNegInvGlue (denom t))) unitInterval 0 = 0 :=
+  H_deriv_vanishes_at_endpoint_expNegInvGlue_comp hdenom_contDiff ⟨le_rfl, by norm_num⟩ hdenom_zero
 
 lemma H_deriv_vanishes_at_one_expNegInvGlue_comp
   {denom : ℝ → ℝ} (hdenom_contDiff : ContDiff ℝ ∞ denom)
   (hdenom_one : denom 1 = 0) :
-  ∀ n : ℕ, n ≥ 1 → iteratedDerivWithin n (H (fun t => expNegInvGlue (denom t))) unitInterval 1 = 0 := by
-  have hmem : (1 : ℝ) ∈ unitInterval := ⟨zero_le_one, le_rfl⟩
-  exact
-    H_deriv_vanishes_at_endpoint_expNegInvGlue_comp hdenom_contDiff hmem hdenom_one
+  ∀ n : ℕ, n ≥ 1 → iteratedDerivWithin n (H (fun t => expNegInvGlue (denom t))) unitInterval 1 = 0 :=
+  H_deriv_vanishes_at_endpoint_expNegInvGlue_comp hdenom_contDiff ⟨zero_le_one, le_rfl⟩ hdenom_one
 
 -- Helper to create smoothstep curve from any denominator function
 noncomputable def mkSmoothstepCurveFromDenom (denom : ℝ → ℝ) (hdenom_contDiff : ContDiff ℝ ∞ denom)
   (hdenom_pos : ∀ x ∈ Set.Ioo 0 1, 0 < denom x) (hdenom_zero : denom 0 = 0) (hdenom_one : denom 1 = 0) : SmoothstepCurve :=
-  let G := fun t => expNegInvGlue (denom t)
-  let hG : ContDiffOn ℝ ∞ G unitInterval :=
+  mkSmoothstepCurve (fun t => expNegInvGlue (denom t))
     (expNegInvGlue.contDiff.comp hdenom_contDiff).contDiffOn
-  let hpos : ∀ x ∈ Set.Ioo 0 1, 0 < G x :=
-    fun x hx => expNegInvGlue.pos_of_pos (hdenom_pos x hx)
-  let hfi : IntervalIntegrable G volume 0 1 :=
-    hG.continuousOn.intervalIntegrable_of_Icc (μ := volume) (a := 0) (b := 1) (by norm_num)
-  let hden : 0 < HInt_denom G := HInt_denom_pos hfi hpos
-  {
-    H := H G,
-    κ := fun s R₁ R₂ L => kappa G s R₁ R₂ L,
-    H_is_C_inf := H_contDiffOn hG,
-    H_zero := H_zero G,
-    H_one := H_one G hden.ne',
-    H_mem_unitInterval := by
-      intro z hz
-      exact H_mem_unitInterval hG hpos hden hz,
-    κ_is_C_inf := fun R₁ R₂ L hL => kappa_contDiffOn hG R₁ R₂ L hL,
-    κ_at_zero := fun R₁ R₂ L => kappa_at_zero G R₁ R₂ L,
-    κ_at_L := fun R₁ R₂ L hL => by
-      have hden_ne : HInt_denom G ≠ 0 := hden.ne'
-      exact kappa_at_L G R₁ R₂ L hL hden_ne,
-    κ_formula := by
-      intro s R₁ R₂ L
-      simp [kappa, kappaOfShape],
-    H_monotone_on_unit := H_monotone_on_unit hG hpos hden,
-    κ_monotone_on_Icc := fun R₁ R₂ L hL hmono =>
-      kappa_monotone_on_Icc hG hpos R₁ R₂ L hL hden hmono,
-    κ_antitone_on_Icc := fun R₁ R₂ L hL hmono =>
-      kappa_antitone_on_Icc hG hpos R₁ R₂ L hL hden hmono,
-    H_deriv_vanishes_at_zero := H_deriv_vanishes_at_zero_expNegInvGlue_comp hdenom_contDiff hdenom_zero,
-    H_deriv_vanishes_at_one := H_deriv_vanishes_at_one_expNegInvGlue_comp hdenom_contDiff hdenom_one
-  }
+    (fun x hx => expNegInvGlue.pos_of_pos (hdenom_pos x hx))
+    (by simp [hdenom_zero, expNegInvGlue.zero])
+    (by simp [hdenom_one, expNegInvGlue.zero])
+    (fun n _ => iteratedDerivWithin_expNegInvGlue_comp_of_mem hdenom_contDiff hdenom_zero ⟨le_rfl, by norm_num⟩ n)
+    (fun n _ => iteratedDerivWithin_expNegInvGlue_comp_of_mem hdenom_contDiff hdenom_one ⟨zero_le_one, le_rfl⟩ n)
 
 structure DenomParams where
   denom : ℝ → ℝ
@@ -1085,63 +713,19 @@ lemma iteratedDerivWithin_comp_vanish_of_flat
     ∀ n : ℕ, n ≥ 1 → iteratedDerivWithin n (fun z => g (φ z)) unitInterval a = 0 := by
   intro n hn
   classical
-  have hs : UniqueDiffOn ℝ unitInterval :=
-    uniqueDiffOn_Icc (show (0 : ℝ) < 1 by norm_num)
-  have ha_image : φ a ∈ unitInterval := hmap ha
-  have hginf :
-      ContDiffWithinAt ℝ ((n : ℕ∞)) g unitInterval (φ a) :=
-    ((hg.contDiffWithinAt ha_image).of_le (by
-      exact_mod_cast (le_top : (n : ℕ∞) ≤ (⊤ : ℕ∞))))
-  have hφinf :
-      ContDiffWithinAt ℝ ((n : ℕ∞)) φ unitInterval a :=
-    ((hφ.contDiffWithinAt ha).of_le (by
-      exact_mod_cast (le_top : (n : ℕ∞) ≤ (⊤ : ℕ∞))))
-  have hsum :=
-    iteratedDerivWithin_comp_eq_sum_orderedFinpartition
-      (hg := hginf) (hf := hφinf) (ht := hs) (hs := hs)
-      (hx := ha) (hst := hmap) (hi := le_rfl)
-  have hpos : 0 < n := Nat.succ_le_iff.mp hn
-  have hparts :
-      ∀ c : OrderedFinpartition n,
-        ∏ j : Fin c.length,
-            iteratedDerivWithin (c.partSize j) φ unitInterval a = 0 := by
-    intro c
-    have hlen : 0 < c.length := c.length_pos hpos
-    classical
-    have hfactor :
-        ∀ j : Fin c.length,
-          iteratedDerivWithin (c.partSize j) φ unitInterval a = 0 := by
-      intro j
-      have hjpos : 1 ≤ c.partSize j := Nat.succ_le_of_lt (c.partSize_pos j)
-      exact hflat _ hjpos
-    classical
-    have hprod :
-        ((Finset.univ : Finset (Fin c.length)).prod fun j =>
-            iteratedDerivWithin (c.partSize j) φ unitInterval a : ℝ) = 0 := by
-      refine
-        Finset.prod_eq_zero
-          (s := (Finset.univ : Finset (Fin c.length)))
-          (f := fun j => iteratedDerivWithin (c.partSize j) φ unitInterval a)
-          (i := ⟨0, hlen⟩) ?_ ?_
-      · simp
-      · simpa using hfactor ⟨0, hlen⟩
-    simpa using hprod
-  have hterm :
-      ∀ c : OrderedFinpartition n,
-        iteratedDerivWithin c.length g unitInterval (φ a)
-            * ∏ j, iteratedDerivWithin (c.partSize j) φ unitInterval a = 0 := by
-    intro c
-    simp [hparts c]
-  have hsimp :
-      ∑ c : OrderedFinpartition n,
-        iteratedDerivWithin c.length g unitInterval (φ a)
-            * ∏ j : Fin c.length,
-                iteratedDerivWithin (c.partSize j) φ unitInterval a = 0 := by
-    classical
-    refine Finset.sum_eq_zero ?_
-    intro c _
-    exact hterm c
-  simpa using hsum.trans hsimp
+  have hginf : ContDiffWithinAt ℝ (n : ℕ∞) g unitInterval (φ a) :=
+    (hg.contDiffWithinAt (hmap ha)).of_le (by exact_mod_cast le_top)
+  have hφinf : ContDiffWithinAt ℝ (n : ℕ∞) φ unitInterval a :=
+    (hφ.contDiffWithinAt ha).of_le (by exact_mod_cast le_top)
+  have hsum := iteratedDerivWithin_comp_eq_sum_orderedFinpartition (i := n)
+    (hg := hginf) (hf := hφinf) (ht := uniqueDiffOn_Icc_zero_one) (hs := uniqueDiffOn_Icc_zero_one)
+    (hx := ha) (hst := hmap) (hi := le_rfl)
+  have hparts (c : OrderedFinpartition n) :
+      ∏ j : Fin c.length, iteratedDerivWithin (c.partSize j) φ unitInterval a = 0 :=
+    Finset.prod_eq_zero (Finset.mem_univ ⟨0, c.length_pos (Nat.succ_le_iff.mp hn)⟩)
+      (hflat _ (Nat.succ_le_of_lt (c.partSize_pos _)))
+  simp only [hparts, mul_zero, Finset.sum_const_zero] at hsum
+  exact hsum
 
 def reparam (base : SmoothstepCurve) (φ : ℝ → ℝ)
     (hφ_smooth : ContDiffOn ℝ ∞ φ unitInterval)
@@ -1150,35 +734,15 @@ def reparam (base : SmoothstepCurve) (φ : ℝ → ℝ)
     (hφ_mono : MonotoneOn φ unitInterval)
     (hφ_flat_zero : ∀ n : ℕ, 1 ≤ n → iteratedDerivWithin n φ unitInterval 0 = 0)
     (hφ_flat_one : ∀ n : ℕ, 1 ≤ n → iteratedDerivWithin n φ unitInterval 1 = 0) :
-    SmoothstepCurve := by
-  classical
-  let Hφ : ℝ → ℝ := fun z => base.H (φ z)
-  have hmaps : Set.MapsTo φ unitInterval unitInterval := fun z hz => hφ_mem hz
-  have hz0 : (0 : ℝ) ∈ unitInterval := ⟨le_rfl, by norm_num⟩
-  have hz1 : (1 : ℝ) ∈ unitInterval := ⟨zero_le_one, le_rfl⟩
-  refine mkSmoothstepCurveFromShape
-    Hφ
-    ?smooth ?H0 ?H1 ?Hmem ?Hmono ?Hflat0 ?Hflat1
-  · have hcomp :
-        ContDiffOn ℝ ∞ (fun z => base.H (φ z)) unitInterval :=
-      base.H_is_C_inf.comp hφ_smooth fun z hz => hφ_mem hz
-    simpa [Hφ] using hcomp
-  · simp [Hφ, hφ_zero, base.H_zero]
-  · simp [Hφ, hφ_one, base.H_one]
-  · intro z hz
-    exact base.H_mem_unitInterval (hφ_mem hz)
-  · intro x hx y hy hxy
-    exact base.H_monotone_on_unit (hφ_mem hx) (hφ_mem hy) (hφ_mono hx hy hxy)
-  · intro n hn
-    have := iteratedDerivWithin_comp_vanish_of_flat
-      (g := base.H) (φ := φ)
-      base.H_is_C_inf hφ_smooth hmaps hz0 hφ_flat_zero
-    exact this n hn
-  · intro n hn
-    have := iteratedDerivWithin_comp_vanish_of_flat
-      (g := base.H) (φ := φ)
-      base.H_is_C_inf hφ_smooth hmaps hz1 hφ_flat_one
-    exact this n hn
+    SmoothstepCurve :=
+  mkSmoothstepCurveFromShape (fun z => base.H (φ z))
+    (base.H_is_C_inf.comp hφ_smooth hφ_mem)
+    (by simp [hφ_zero, base.H_zero])
+    (by simp [hφ_one, base.H_one])
+    (fun {z} hz => base.H_mem_unitInterval (hφ_mem hz))
+    (fun _ hx _ hy hxy => base.H_monotone_on_unit (hφ_mem hx) (hφ_mem hy) (hφ_mono hx hy hxy))
+    (iteratedDerivWithin_comp_vanish_of_flat base.H_is_C_inf hφ_smooth hφ_mem ⟨le_rfl, by norm_num⟩ hφ_flat_zero)
+    (iteratedDerivWithin_comp_vanish_of_flat base.H_is_C_inf hφ_smooth hφ_mem ⟨zero_le_one, le_rfl⟩ hφ_flat_one)
 
 end Smooth
 
@@ -1201,14 +765,8 @@ def mixShape (w : ℝ) (H₁ H₂ : ℝ → ℝ) : ℝ → ℝ :=
 lemma mixShape_contDiff (w : ℝ)
     {H₁ H₂ : ℝ → ℝ} (hH₁ : ContDiffOn ℝ ∞ H₁ unitInterval)
     (hH₂ : ContDiffOn ℝ ∞ H₂ unitInterval) :
-    ContDiffOn ℝ ∞ (mixShape w H₁ H₂) unitInterval := by
-  have hmul₁ :
-      ContDiffOn ℝ ∞ (fun z => w * H₁ z) unitInterval :=
-    (ContDiffOn.const_smul (s := unitInterval) (f := H₁) w hH₁)
-  have hmul₂ :
-      ContDiffOn ℝ ∞ (fun z => (1 - w) * H₂ z) unitInterval :=
-    (ContDiffOn.const_smul (s := unitInterval) (f := H₂) (1 - w) hH₂)
-  exact hmul₁.add hmul₂
+    ContDiffOn ℝ ∞ (mixShape w H₁ H₂) unitInterval :=
+  (hH₁.const_smul w).add (hH₂.const_smul (1 - w))
 
 lemma mixShape_mem_unitInterval {w : ℝ} (hw : w ∈ Set.Icc (0 : ℝ) 1)
     {H₁ H₂ : ℝ → ℝ}
@@ -1217,38 +775,21 @@ lemma mixShape_mem_unitInterval {w : ℝ} (hw : w ∈ Set.Icc (0 : ℝ) 1)
     {z : ℝ} (hz : z ∈ unitInterval) :
     mixShape w H₁ H₂ z ∈ unitInterval := by
   obtain ⟨hw0, hw1⟩ := hw
-  have h1w : 0 ≤ 1 - w := sub_nonneg.mpr hw1
+  have h1w := sub_nonneg.mpr hw1
   obtain ⟨h1lo, h1hi⟩ := hH₁ hz
   obtain ⟨h2lo, h2hi⟩ := hH₂ hz
-  refine ⟨?_, ?_⟩
-  · have hterm1 : 0 ≤ w * H₁ z := mul_nonneg hw0 h1lo
-    have hterm2 : 0 ≤ (1 - w) * H₂ z := mul_nonneg h1w h2lo
-    exact add_nonneg hterm1 hterm2
-  · have hterm1 : w * H₁ z ≤ w * 1 := by
-      exact mul_le_mul_of_nonneg_left h1hi hw0
-    have hterm2 : (1 - w) * H₂ z ≤ (1 - w) * 1 := by
-      exact mul_le_mul_of_nonneg_left h2hi h1w
-    have hsum_le :
-        mixShape w H₁ H₂ z ≤ w * (1 : ℝ) + (1 - w) * (1 : ℝ) :=
-      add_le_add hterm1 hterm2
-    have hsum_eq : w * (1 : ℝ) + (1 - w) * (1 : ℝ) = 1 := by ring
-    simpa [mixShape, hsum_eq] using hsum_le
+  constructor
+  · exact add_nonneg (mul_nonneg hw0 h1lo) (mul_nonneg h1w h2lo)
+  · calc mixShape w H₁ H₂ z ≤ w * 1 + (1 - w) * 1 :=
+        add_le_add (mul_le_mul_of_nonneg_left h1hi hw0) (mul_le_mul_of_nonneg_left h2hi h1w)
+    _ = 1 := by ring
 
 lemma mixShape_monotone {w : ℝ} (hw : 0 ≤ w) (hw' : 0 ≤ 1 - w)
     {H₁ H₂ : ℝ → ℝ} (hH₁ : MonotoneOn H₁ unitInterval)
     (hH₂ : MonotoneOn H₂ unitInterval) :
-    MonotoneOn (mixShape w H₁ H₂) unitInterval := by
-  intro x hx y hy hxy
-  have h1 := hH₁ hx hy hxy
-  have h2 := hH₂ hx hy hxy
-  have hterm1 :
-      w * H₁ x ≤ w * H₁ y :=
-    mul_le_mul_of_nonneg_left h1 hw
-  have hterm2 :
-      (1 - w) * H₂ x ≤ (1 - w) * H₂ y :=
-    mul_le_mul_of_nonneg_left h2 hw'
-  have := add_le_add hterm1 hterm2
-  simpa [mixShape, add_comm, add_left_comm, add_assoc, add_right_comm] using this
+    MonotoneOn (mixShape w H₁ H₂) unitInterval := fun _ hx _ hy hxy =>
+  add_le_add (mul_le_mul_of_nonneg_left (hH₁ hx hy hxy) hw)
+    (mul_le_mul_of_nonneg_left (hH₂ hx hy hxy) hw')
 
 lemma iteratedDeriv_mixShape_zero
     {c₁ c₂ : SmoothstepCurve} {w : ℝ} {a : ℝ} (ha : a ∈ unitInterval) :
@@ -1258,63 +799,28 @@ lemma iteratedDeriv_mixShape_zero
         (1 - w) * iteratedDerivWithin n c₂.H unitInterval a := by
   intro n
   classical
-  have hs : UniqueDiffOn ℝ unitInterval :=
-    uniqueDiffOn_Icc (show (0 : ℝ) < 1 by norm_num)
-  have hcont₁ :
-      ContDiffWithinAt ℝ ((n : ℕ∞)) c₁.H unitInterval a :=
-    ((c₁.H_is_C_inf.contDiffWithinAt ha).of_le (by
-      exact_mod_cast (le_top : (n : ℕ∞) ≤ (⊤ : ℕ∞))))
-  have hcont₂ :
-      ContDiffWithinAt ℝ ((n : ℕ∞)) c₂.H unitInterval a :=
-    ((c₂.H_is_C_inf.contDiffWithinAt ha).of_le (by
-      exact_mod_cast (le_top : (n : ℕ∞) ≤ (⊤ : ℕ∞))))
-  have hscale₁ :=
-    iteratedDerivWithin_const_mul (hx := ha) (h := hs) w hcont₁
-  have hscale₂ :=
-    iteratedDerivWithin_const_mul (hx := ha) (h := hs) (1 - w) hcont₂
-  have hcontscaled₁ :
-      ContDiffWithinAt ℝ ((n : ℕ∞)) (fun z => w * c₁.H z) unitInterval a :=
-    (ContDiffWithinAt.const_smul (s := unitInterval) (f := c₁.H) (x := a) w hcont₁)
-  have hcontscaled₂ :
-      ContDiffWithinAt ℝ ((n : ℕ∞)) (fun z => (1 - w) * c₂.H z) unitInterval a :=
-    (ContDiffWithinAt.const_smul (s := unitInterval) (f := c₂.H) (x := a) (1 - w) hcont₂)
-  have hadd :=
-    iteratedDerivWithin_fun_add (hx := ha) (h := hs) hcontscaled₁ hcontscaled₂
-  have hscaled :
-      iteratedDerivWithin n (mixShape w c₁.H c₂.H) unitInterval a =
-        iteratedDerivWithin n (fun z => w * c₁.H z) unitInterval a +
-          iteratedDerivWithin n (fun z => (1 - w) * c₂.H z) unitInterval a := by
-    simpa [mixShape, add_comm, add_left_comm, add_assoc] using hadd
-  simpa [mixShape, add_comm, add_left_comm, add_assoc, hscale₁, hscale₂] using hscaled
+  have hcont₁ : ContDiffWithinAt ℝ (n : ℕ∞) c₁.H unitInterval a :=
+    (c₁.H_is_C_inf.contDiffWithinAt ha).of_le (by exact_mod_cast le_top)
+  have hcont₂ : ContDiffWithinAt ℝ (n : ℕ∞) c₂.H unitInterval a :=
+    (c₂.H_is_C_inf.contDiffWithinAt ha).of_le (by exact_mod_cast le_top)
+  have hscale₁ := iteratedDerivWithin_const_mul ha uniqueDiffOn_Icc_zero_one w hcont₁
+  have hscale₂ := iteratedDerivWithin_const_mul ha uniqueDiffOn_Icc_zero_one (1 - w) hcont₂
+  have hadd := iteratedDerivWithin_fun_add (hx := ha) (h := uniqueDiffOn_Icc_zero_one)
+    (hcont₁.const_smul w) (hcont₂.const_smul (1 - w))
+  simpa [mixShape, hscale₁, hscale₂] using hadd
 
 noncomputable def mixCurve (w : ℝ) (hw : w ∈ Set.Icc (0 : ℝ) 1)
-    (c₁ c₂ : SmoothstepCurve) : SmoothstepCurve := by
-  classical
-  refine mkSmoothstepCurveFromShape
-    (mixShape w c₁.H c₂.H)
+    (c₁ c₂ : SmoothstepCurve) : SmoothstepCurve :=
+  mkSmoothstepCurveFromShape (mixShape w c₁.H c₂.H)
     (mixShape_contDiff w c₁.H_is_C_inf c₂.H_is_C_inf)
     (by simp [mixShape, c₁.H_zero, c₂.H_zero])
     (by simp [mixShape, c₁.H_one, c₂.H_one])
-    ?mem ?mono ?flat0 ?flat1
-  · intro z hz
-    exact mixShape_mem_unitInterval hw
-      (c₁.H_mem_unitInterval) (c₂.H_mem_unitInterval) hz
-  · have hw0 : 0 ≤ w := hw.1
-    have hw1 : 0 ≤ 1 - w := sub_nonneg.mpr hw.2
-    exact mixShape_monotone hw0 hw1
-      c₁.H_monotone_on_unit c₂.H_monotone_on_unit
-  · intro n hn
-    have hderiv := iteratedDeriv_mixShape_zero
-        (c₁ := c₁) (c₂ := c₂) (w := w) (a := 0) (ha := ⟨le_rfl, by norm_num⟩) n
-    have hz₁ := c₁.H_deriv_vanishes_at_zero n hn
-    have hz₂ := c₂.H_deriv_vanishes_at_zero n hn
-    simp [hderiv, hz₁, hz₂]
-  · intro n hn
-    have hderiv := iteratedDeriv_mixShape_zero
-        (c₁ := c₁) (c₂ := c₂) (w := w) (a := 1) (ha := ⟨zero_le_one, le_rfl⟩) n
-    have hz₁ := c₁.H_deriv_vanishes_at_one n hn
-    have hz₂ := c₂.H_deriv_vanishes_at_one n hn
-    simp [hderiv, hz₁, hz₂]
+    (fun {z} hz => mixShape_mem_unitInterval hw c₁.H_mem_unitInterval c₂.H_mem_unitInterval hz)
+    (mixShape_monotone hw.1 (sub_nonneg.mpr hw.2) c₁.H_monotone_on_unit c₂.H_monotone_on_unit)
+    (fun n hn => by simp [iteratedDeriv_mixShape_zero (c₁ := c₁) (c₂ := c₂) ⟨le_rfl, by norm_num⟩ n,
+      c₁.H_deriv_vanishes_at_zero n hn, c₂.H_deriv_vanishes_at_zero n hn])
+    (fun n hn => by simp [iteratedDeriv_mixShape_zero (c₁ := c₁) (c₂ := c₂) ⟨zero_le_one, le_rfl⟩ n,
+      c₁.H_deriv_vanishes_at_one n hn, c₂.H_deriv_vanishes_at_one n hn])
 
 end Smooth
 
