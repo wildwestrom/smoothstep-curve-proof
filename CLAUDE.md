@@ -25,11 +25,10 @@ lake exe runLinter   # Run the linter
 - `proofs/Common.lean` - Shared Mathlib imports and options
 
 **Main Structures and Constructors** (`proofs/smoothstep_curve.lean`):
-- `SmoothstepCurve` (line 514) - Structure packaging H, κ, boundary conditions
-- `mkSmoothstepCurve` (line 542) - Constructor from bump function G
-- `mkSmoothstepCurveFromShape` (line 580) - Constructor from shape function H directly
-- `mkSmoothstepCurveFromDenom` (line 814) - Constructor from denominator function via `expNegInvGlue ∘ denom`
-- `DenomParams` (line 850) - Helper structure for denominator-based construction
+- `SmoothstepCurve` - Structure packaging H, κ, boundary conditions (global ContDiff)
+- `mkSmoothstepCurveFromShape` - Constructor from shape function H directly
+- `DenomParams` - Helper structure for denominator-based construction
+- `curveFrom` - Constructor from DenomParams via `expNegInvGlue ∘ denom`
 
 **Namespaces**:
 - `GenericFramework` - Core primitives, H construction, curvature definitions
@@ -69,3 +68,20 @@ lake exe runLinter   # Run the linter
 1. Start with `sorry`/`admit` to get structure compiling
 2. Use `have` for intermediate results
 3. Fill in one piece at a time, checking `lean_goal` after each change
+
+## Project-Specific Tips
+
+**Cleaning up unused lemmas**:
+- Use `Grep` with `output_mode: "count"` to find usage - 1 occurrence = unused (definition only)
+- Wrapper lemmas accumulate over time - periodically audit and remove
+
+**ContDiffOn vs ContDiff**:
+- `ContDiff ℝ ∞ f` = globally smooth on all of ℝ
+- `ContDiffOn ℝ ∞ f s` = smooth on subset s
+- When migrating to global smoothness, update derivative lemmas too (`iteratedDeriv` vs `iteratedDerivWithin`)
+- Valid proof pattern: use `iteratedDerivWithin` internally, then convert to `iteratedDeriv` via `iteratedDerivWithin_eq_iteratedDeriv`
+- Argument order: `iteratedDerivWithin_eq_iteratedDeriv (hs : UniqueDiffOn) (h : ContDiffAt) (hx : x ∈ s)`
+
+**Linter fixes**:
+- Unused lambda args need `_` prefix: `fun _z hz => ...` not `fun z hz => ...`
+- The linter uses nolints.json for exceptions - run with `--update` to regenerate
