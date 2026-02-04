@@ -297,31 +297,50 @@ This structure encapsulates a complete smoothstep curve with all its properties.
 -/
 
 structure SmoothstepCurve where
+  -- The shape function H : [0,1] → [0,1], derived as the normalized primitive of bump G
   H : ℝ → ℝ
+  -- The curvature function κ(s, R₁, R₂, L) = R₁ + (R₂ - R₁) · H(s/L)
   κ : ℝ → ℝ → ℝ → ℝ → ℝ
+
+  ----- Condition 1: Smoothness (H ∈ C^∞([0,1])) -----
   H_is_C_inf : ContDiffOn ℝ ∞ H unitInterval
+
+  ----- Condition 2: Boundary values (H(0) = 0, H(1) = 1) -----
   H_zero : H 0 = 0
   H_one : H 1 = 1
+  -- H maps [0,1] into [0,1] (consequence of monotonicity + boundary values)
   H_mem_unitInterval :
     ∀ ⦃z : ℝ⦄, z ∈ unitInterval → H z ∈ unitInterval
+
+  ----- Curvature smoothness and boundary matching -----
+  -- κ is C^∞ on the transition interval [0, L]
   κ_is_C_inf :
     ∀ R₁ R₂ L (_ : 0 < L),
       ContDiffOn ℝ ∞ (fun s => κ s R₁ R₂ L) (Set.Icc 0 L)
+  -- κ(0) = R₁: curvature matches start value at s = 0
   κ_at_zero : ∀ R₁ R₂ L, κ 0 R₁ R₂ L = R₁
+  -- κ(L) = R₂: curvature matches end value at s = L
   κ_at_L : ∀ R₁ R₂ L (_ : L ≠ 0), κ L R₁ R₂ L = R₂
+  -- The defining formula: κ(s) = R₁ + ΔR · H(s/L) where ΔR = R₂ - R₁
   κ_formula :
     ∀ s R₁ R₂ L, κ s R₁ R₂ L = R₁ + (R₂ - R₁) * H (s / L)
-  -- Monotonicity of the shape function on [0,1].
+
+  ----- Condition 3: Monotonicity (H'(z) ≥ 0 for all z ∈ [0,1]) -----
+  -- H is monotonically increasing on [0,1]
   H_monotone_on_unit : MonotoneOn H unitInterval
-  -- κ is monotone when R₁ ≤ R₂ and antitone when R₂ ≤ R₁.
+  -- κ increases when R₁ ≤ R₂ (curvature goes up)
   κ_monotone_on_Icc :
     ∀ R₁ R₂ L (_ : 0 < L) (_ : R₁ ≤ R₂),
       MonotoneOn (fun s => κ s R₁ R₂ L) (Set.Icc 0 L)
+  -- κ decreases when R₂ ≤ R₁ (curvature goes down)
   κ_antitone_on_Icc :
     ∀ R₁ R₂ L (_ : 0 < L) (_ : R₂ ≤ R₁),
       AntitoneOn (fun s => κ s R₁ R₂ L) (Set.Icc 0 L)
-  -- Flatness at boundaries: all derivatives (n ≥ 1) of H vanish at 0 and 1
+
+  ----- Condition 4: Flatness at endpoints (H^(n)(0) = H^(n)(1) = 0 for all n ≥ 1) -----
+  -- All derivatives vanish at z = 0, ensuring G^∞ continuity at the start join
   H_deriv_vanishes_at_zero : ∀ n : ℕ, n ≥ 1 → iteratedDerivWithin n H unitInterval 0 = 0
+  -- All derivatives vanish at z = 1, ensuring G^∞ continuity at the end join
   H_deriv_vanishes_at_one : ∀ n : ℕ, n ≥ 1 → iteratedDerivWithin n H unitInterval 1 = 0
 
 /-- Constructor that takes an abstract shape function satisfying the four core properties. -/
@@ -646,7 +665,10 @@ noncomputable def curvePow {a : ℝ} {p q : ℕ} (ha : 0 < a) (hp : 0 < p) (hq :
     SmoothstepCurve :=
   curveFrom (denomPowParams (a := a) (p := p) (q := q) ha hp hq)
 
--- Polynomial bump denominator with an affine skew term
+/-
+Polynomial bump denominator with an affine skew term
+-/
+
 def denomPoly (α β : ℝ) (z : ℝ) : ℝ :=
   (z * (1 - z)) * (α + β * z)
 
