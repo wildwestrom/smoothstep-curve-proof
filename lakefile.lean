@@ -16,7 +16,7 @@ require Paperproof from git
 lean_lib proofs
 
 lean_exe runLinter where
-  root := `Scripts.RunLinter
+  root := `scripts.run_linter
   supportInterpreter := true
 
 set_option pp.unicode.fun true
