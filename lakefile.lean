@@ -4,10 +4,10 @@ open Lake DSL
 package playground
 
 require mathlib from git
-  "https://github.com/leanprover-community/mathlib4" @ "master"
+  "https://github.com/leanprover-community/mathlib4" @ "d72a3c31ca863b32dfcb079f8ceef029123af9f0"
 
 require batteries from git
-  "https://github.com/leanprover-community/batteries" @ "main"
+  "https://github.com/leanprover-community/batteries" @ "1f22a4f44c1726b61fab3c2c75e0651f35c795dc"
 
 require Paperproof from git
   "https://github.com/Paper-Proof/paperproof.git" @"main"/"lean"

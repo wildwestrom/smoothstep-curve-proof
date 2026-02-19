@@ -11,7 +11,10 @@ A Lean 4 proof formalizing smoothstep curves—infinitely differentiable curvatu
 ```bash
 lake build           # Build the project
 lake exe runLinter   # Run the linter
+lake exe cache get   # Download pre-built Mathlib cache (use after lake update)
 ```
+
+**NEVER run `lake clean`** - This project depends on Mathlib, which takes 1+ hour to rebuild from scratch. If you need to force a rebuild of project files only, delete specific `.olean` files in `.lake/build/lib/proofs/` instead. If Mathlib cache is missing, use `lake exe cache get` to download pre-built oleans.
 
 ## Architecture
 
