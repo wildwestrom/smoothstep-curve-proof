@@ -1,0 +1,34 @@
+name = "smoothstep-curve"
+version = "0.1.0"
+keywords = ["math"]
+defaultTargets = ["proofs"]
+
+[content.options]
+"pp.unicode.fun" = true
+"autoImplicit" = true
+"relaxedAutoImplicit" = false
+
+[[require]]
+name = "mathlib"
+git = "https://github.com/leanprover-community/mathlib4"
+rev = "d72a3c31ca863b32dfcb079f8ceef029123af9f0"
+
+[[require]]
+name = "batteries"
+git = "https://github.com/leanprover-community/batteries"
+rev = "1f22a4f44c1726b61fab3c2c75e0651f35c795dc"
+
+[[require]]
+name = "Paperproof"
+git = "https://github.com/Paper-Proof/paperproof.git"
+rev = "main"
+subDir = "lean"
+
+[[lean_lib]]
+name = "proofs"
+roots = ["proofs"]
+
+[[lean_exe]]
+name = "runLinter"
+root = "scripts.run_linter"
+supportInterpreter = true
