@@ -4,7 +4,7 @@
   Float-based numerical implementation of smoothstep curves for `#eval` and potential extraction.
   Uses Gauss-Legendre quadrature for numerical integration.
 
-  Target precision: 10⁻⁶ relative error (achieved via 32-point Gauss-Legendre).
+  UNVERIFIED: the informal precision claims below are numerical expectations, not Lean proofs.
 -/
 
 namespace Computable
@@ -55,6 +55,7 @@ def gaussLegendreNodes32 : Array Float := #[
   0.99726386184948157
 ]
 
+/-- 32-point Gauss-Legendre weights on [-1, 1]. -/
 def gaussLegendreWeights32 : Array Float := #[
   0.0070186100094744202,
   0.016274394730904029,
@@ -90,6 +91,70 @@ def gaussLegendreWeights32 : Array Float := #[
   0.0070186100094744202
 ]
 
+/-- 8-point Gauss-Legendre nodes on [-1, 1]. -/
+def gaussLegendreNodes8 : Array Float := #[
+  -0.96028985649753629,
+  -0.79666647741362684,
+  -0.52553240991632899,
+  -0.18343464249564981,
+  0.18343464249564981,
+  0.52553240991632899,
+  0.79666647741362684,
+  0.96028985649753629
+]
+
+/-- 8-point Gauss-Legendre weights on [-1, 1]. -/
+def gaussLegendreWeights8 : Array Float := #[
+  0.10122853629037618,
+  0.22238103445337437,
+  0.31370664587788732,
+  0.3626837833783621,
+  0.3626837833783621,
+  0.31370664587788732,
+  0.22238103445337437,
+  0.10122853629037618
+]
+
+/-- 16-point Gauss-Legendre nodes on [-1, 1]. -/
+def gaussLegendreNodes16 : Array Float := #[
+  -0.98940093499164994,
+  -0.9445750230732326,
+  -0.86563120238783176,
+  -0.755404408355003,
+  -0.61787624440264377,
+  -0.45801677765722737,
+  -0.28160355077925892,
+  -0.095012509837637441,
+  0.095012509837637441,
+  0.28160355077925892,
+  0.45801677765722737,
+  0.61787624440264377,
+  0.755404408355003,
+  0.86563120238783176,
+  0.9445750230732326,
+  0.98940093499164994
+]
+
+/-- 16-point Gauss-Legendre weights on [-1, 1]. -/
+def gaussLegendreWeights16 : Array Float := #[
+  0.027152459411754069,
+  0.062253523938647776,
+  0.095158511682492897,
+  0.12462897125553395,
+  0.14959598881657685,
+  0.16915651939500256,
+  0.18260341504492361,
+  0.18945061045506845,
+  0.18945061045506845,
+  0.18260341504492361,
+  0.16915651939500256,
+  0.14959598881657685,
+  0.12462897125553395,
+  0.095158511682492897,
+  0.062253523938647776,
+  0.027152459411754069
+]
+
 
 
 /-- Helper loop for Gauss-Legendre integration -/
@@ -104,13 +169,17 @@ private def integrateLoop (f : Float → Float) (scale shift : Float)
     acc
 termination_by nodes.size - i
 
+/-- Numerical integration of `f` over `[a, b]` using the supplied Gauss-Legendre rule. -/
+def integrateWithRule (nodes weights : Array Float) (f : Float → Float) (a b : Float) : Float :=
+  let scale := (b - a) / 2
+  let shift := (a + b) / 2
+  scale * integrateLoop f scale shift nodes weights 0 0
+
 /-- Numerical integration of f over [a, b] using 32-point Gauss-Legendre quadrature.
     Transform from [-1,1] to [a,b] via x = scale * t + shift where
     scale = (b-a)/2, shift = (a+b)/2 -/
 def integrate (f : Float → Float) (a b : Float) : Float :=
-  let scale := (b - a) / 2
-  let shift := (a + b) / 2
-  scale * integrateLoop f scale shift gaussLegendreNodes32 gaussLegendreWeights32 0 0
+  integrateWithRule gaussLegendreNodes32 gaussLegendreWeights32 f a b
 
 /-! ## Layer 2: Bump Function and Shape Function H -/
 
@@ -138,6 +207,12 @@ def HIntDenom : Float := integrate G 0 1
     H is C∞ and monotonically increasing. -/
 def H (z : Float) : Float := HInt z / HIntDenom
 
+/-- Shape function computed with a supplied Gauss-Legendre rule. -/
+def HWithRule (nodes weights : Array Float) (z : Float) : Float :=
+  let num := integrateWithRule nodes weights G 0 z
+  let denom := integrateWithRule nodes weights G 0 1
+  num / denom
+
 /-! ## Layer 3: Curvature Function -/
 
 /-- Curvature function κ(s) that transitions from R₁ to R₂ over arc length L.
@@ -163,6 +238,19 @@ structure CurveState where
   x : Float
   /-- Y coordinate -/
   y : Float
+
+/-- Configuration bundle for curvature and geometric sampling. -/
+structure CurveConfig where
+  /-- Initial curvature. -/
+  R1 : Float
+  /-- Final curvature. -/
+  R2 : Float
+  /-- Transition length. -/
+  L : Float
+  /-- Initial tangent angle. -/
+  theta0 : Float
+  /-- Number of RK4 steps. -/
+  nSteps : Nat
 
 instance : Repr CurveState where
   reprPrec c _ := repr s!"\{ s := {c.s}, theta := {c.theta}, x := {c.x}, y := {c.y} }"
@@ -226,6 +314,10 @@ def integrateCurve (R1 R2 L : Float) (theta0 : Float) (nSteps : Nat) : Array Cur
   let init : CurveState := { s := 0, theta := theta0, x := 0, y := 0 }
   integrateCurveLoop kappaFn ds nSteps 0 init #[]
 
+/-- Integrate Frenet-Serret equations using a `CurveConfig`. -/
+def integrateCurveWith (cfg : CurveConfig) : Array CurveState :=
+  integrateCurve cfg.R1 cfg.R2 cfg.L cfg.theta0 cfg.nSteps
+
 /-! ## Parametric Variants -/
 
 /-- Scaled denominator: a · z(1-z) -/
@@ -264,6 +356,11 @@ def curvePoints (R1 R2 L theta0 : Float) (nSteps : Nat) : Array (Float × Float)
   let states := integrateCurve R1 R2 L theta0 nSteps
   states.map fun s => (s.x, s.y)
 
+/-- Extract `(x, y)` coordinates using a `CurveConfig`. -/
+def curvePointsWith (cfg : CurveConfig) : Array (Float × Float) :=
+  let states := integrateCurveWith cfg
+  states.map fun s => (s.x, s.y)
+
 /-- Helper for curvatureProfile -/
 private def curvatureProfileLoop (R1 R2 L ds : Float) (nSamples i : Nat)
     (acc : Array (Float × Float)) : Array (Float × Float) :=
@@ -278,6 +375,52 @@ termination_by nSamples + 1 - i
 def curvatureProfile (R1 R2 L : Float) (nSamples : Nat) : Array (Float × Float) :=
   let ds := L / nSamples.toFloat
   curvatureProfileLoop R1 R2 L ds nSamples 0 #[]
+
+/-- Tangent angle obtained by numerically integrating the curvature profile. -/
+def thetaByQuadrature (cfg : CurveConfig) (s : Float) : Float :=
+  cfg.theta0 + integrate (fun u => kappa u cfg.R1 cfg.R2 cfg.L) 0 s
+
+/-- Endpoint computed by directly quadraturing the Frenet-Serret velocity field. -/
+def endpointByQuadrature (cfg : CurveConfig) : Float × Float :=
+  let x := integrate (fun s => Float.cos (thetaByQuadrature cfg s)) 0 cfg.L
+  let y := integrate (fun s => Float.sin (thetaByQuadrature cfg s)) 0 cfg.L
+  (x, y)
+
+/-- Final point of the discrete RK4 curve sampler. -/
+def curveEndpoint (cfg : CurveConfig) : Float × Float :=
+  let pts := curvePointsWith cfg
+  pts[pts.size - 1]!
+
+/-- Absolute error between the RK4 endpoint and the direct quadrature endpoint. -/
+def curveEndpointRoundTripError (cfg : CurveConfig) : Float × Float :=
+  let (xRK, yRK) := curveEndpoint cfg
+  let (xQ, yQ) := endpointByQuadrature cfg
+  (Float.abs (xRK - xQ), Float.abs (yRK - yQ))
+
+/-- `H 0.5` computed from the half-interval quadrature and the canonical symmetry `H(0.5)=0.5`. -/
+def hHalfWithRuleBySymmetry (nodes weights : Array Float) : Float :=
+  let half := integrateWithRule nodes weights G 0 0.5
+  half / (2 * half)
+
+/-- Absolute successive differences for `H 0.5` under 8/16/32-point quadrature. -/
+def hHalfConvergenceDiffs : Float × Float :=
+  let h8 := hHalfWithRuleBySymmetry gaussLegendreNodes8 gaussLegendreWeights8
+  let h16 := hHalfWithRuleBySymmetry gaussLegendreNodes16 gaussLegendreWeights16
+  let h32 := hHalfWithRuleBySymmetry gaussLegendreNodes32 gaussLegendreWeights32
+  (Float.abs (h16 - h8), Float.abs (h32 - h16))
+
+/-- Boolean convergence check for the `H 0.5` quadrature sequence. -/
+def hHalfConvergesTo1e10 : Bool :=
+  let (d816, d1632) := hHalfConvergenceDiffs
+  decide (d816 < 1e-10 && d1632 < 1e-10)
+
+/-- Demo configuration used by the executable numerical checks. -/
+def demoCurveConfig : CurveConfig where
+  R1 := 0
+  R2 := 1 / 10
+  L := 10
+  theta0 := 0
+  nSteps := 1000
 
 /-! ## Verification Examples
 
@@ -299,9 +442,16 @@ These should work after implementation:
 
 -- Test curve integration
 #eval integrateCurve 0 1 1 0 10
+#eval curveEndpoint demoCurveConfig
+#eval endpointByQuadrature demoCurveConfig
+#eval curveEndpointRoundTripError demoCurveConfig
 
 -- Test parametric variants
 #eval HScaled 1.0 0.5
 #eval HPow 1.0 2 2 0.5
+
+-- Quadrature convergence probe for H(0.5)
+#eval hHalfConvergenceDiffs
+#eval hHalfConvergesTo1e10
 
 end Computable

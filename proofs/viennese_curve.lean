@@ -26,14 +26,9 @@ section BridgeLemmas
 
 lemma iteratedDeriv_iteratedDeriv {f : ℝ → ℝ} (m n : ℕ) :
     iteratedDeriv m (iteratedDeriv n f) = iteratedDeriv (m + n) f := by
-  induction m generalizing n with
-  | zero => simp [iteratedDeriv_zero]
-  | succ m ih =>
-    rw [iteratedDeriv_succ']
-    have hderiv : deriv (iteratedDeriv n f) = iteratedDeriv (n + 1) f := by
-      rw [← iteratedDeriv_succ]
-    rw [hderiv, ih (n + 1)]
-    congr 1; omega
+  ext x
+  rw [iteratedDeriv_eq_iterate, iteratedDeriv_eq_iterate, iteratedDeriv_eq_iterate]
+  simpa using congrArg (fun h => h f x) (Function.iterate_add deriv m n).symm
 
 lemma contDiff_iteratedDeriv_top {f : ℝ → ℝ} (hf : ContDiff ℝ ∞ f) (n : ℕ) :
     ContDiff ℝ ∞ (iteratedDeriv n f) := by
@@ -48,9 +43,11 @@ section VienneseCurveDefs
 
 /-! ### Cant and physical curvature definitions -/
 
+/-- Cant profile induced by a smoothstep shape. -/
 noncomputable def vienneseCant (sc : SmoothstepCurve) (psi_start psi_end : ℝ) : ℝ → ℝ :=
   fun z => psi_start + (psi_end - psi_start) * sc.H z
 
+/-- Physical curvature at aligning height `h_align` following the Viennese/Hasslinger model. -/
 noncomputable def vienneseKappa (sc : SmoothstepCurve) (h_align L kappa_ref psi_ref psi_start psi_end : ℝ) : ℝ → ℝ :=
   fun z => (kappa_ref / psi_ref) * vienneseCant sc psi_start psi_end z
            - (h_align / L ^ 2) * iteratedDeriv 2 (vienneseCant sc psi_start psi_end) z
@@ -99,12 +96,14 @@ lemma kappa_physical_deriv_vanishes (sc : SmoothstepCurve) (h_align L kappa_ref 
     contDiff_const.mul hcant_cd
   have hterm2_cd : ContDiff ℝ ∞ (fun z => (h_align / L ^ 2) * iteratedDeriv 2 (vienneseCant sc psi_start psi_end) z) :=
     contDiff_const.mul hcant2_cd
+  have hterm1_at : ContDiffAt ℝ n (fun z => (kappa_ref / psi_ref) * vienneseCant sc psi_start psi_end z) x :=
+    hterm1_cd.contDiffAt.of_le (by exact_mod_cast le_top (a := (n : ℕ∞)))
+  have hterm2_at : ContDiffAt ℝ n (fun z => (h_align / L ^ 2) * iteratedDeriv 2 (vienneseCant sc psi_start psi_end) z) x :=
+    hterm2_cd.contDiffAt.of_le (by exact_mod_cast le_top (a := (n : ℕ∞)))
   rw [show vienneseKappa sc h_align L kappa_ref psi_ref psi_start psi_end =
-    (fun z => (kappa_ref / psi_ref) * vienneseCant sc psi_start psi_end z) -
-    (fun z => (h_align / L ^ 2) * iteratedDeriv 2 (vienneseCant sc psi_start psi_end) z) from rfl]
-  rw [iteratedDeriv_sub
-    (hterm1_cd.contDiffAt.of_le (by exact_mod_cast le_top (a := (n : ℕ∞))))
-    (hterm2_cd.contDiffAt.of_le (by exact_mod_cast le_top (a := (n : ℕ∞))))]
+      (fun z => (kappa_ref / psi_ref) * vienneseCant sc psi_start psi_end z) -
+      (fun z => (h_align / L ^ 2) * iteratedDeriv 2 (vienneseCant sc psi_start psi_end) z) from rfl]
+  rw [iteratedDeriv_sub hterm1_at hterm2_at]
   rw [iteratedDeriv_const_mul_field]
   rw [iteratedDeriv_const_mul_field]
   have hcant_vanish := cant_deriv_vanishes sc psi_start psi_end n hn x hx
@@ -137,13 +136,21 @@ end VienneseCurveDefs
 
 /-! ### VienneseCurve structure -/
 
+/-- A physical railway transition obtained from a `SmoothstepCurve` by the Viennese model. -/
 structure VienneseCurve where
+  /-- Underlying normalized smoothstep transition. -/
   sc : SmoothstepCurve
+  /-- Aligning height above the rail. -/
   h_align : ℝ
+  /-- Transition length. -/
   L : ℝ
+  /-- Reference curvature coefficient. -/
   kappa_ref : ℝ
+  /-- Reference cant coefficient. -/
   psi_ref : ℝ
+  /-- Initial cant value. -/
   psi_start : ℝ
+  /-- Final cant value. -/
   psi_end : ℝ
   h_align_nonneg : 0 ≤ h_align
   L_pos : 0 < L
@@ -151,14 +158,17 @@ structure VienneseCurve where
 
 namespace VienneseCurve
 
+/-- The cant profile associated to a `VienneseCurve`. -/
 noncomputable def cant (vc : VienneseCurve) : ℝ → ℝ :=
   vienneseCant vc.sc vc.psi_start vc.psi_end
 
+/-- The physical curvature profile associated to a `VienneseCurve`. -/
 noncomputable def kappa (vc : VienneseCurve) : ℝ → ℝ :=
   vienneseKappa vc.sc vc.h_align vc.L vc.kappa_ref vc.psi_ref vc.psi_start vc.psi_end
 
 end VienneseCurve
 
+/-- Constructor for `VienneseCurve` values from raw parameters and side conditions. -/
 noncomputable def mkVienneseCurve
     (sc : SmoothstepCurve) (h_align L kappa_ref psi_ref psi_start psi_end : ℝ)
     (h_align_nonneg : 0 ≤ h_align) (L_pos : 0 < L) (psi_ref_ne_zero : psi_ref ≠ 0) :
