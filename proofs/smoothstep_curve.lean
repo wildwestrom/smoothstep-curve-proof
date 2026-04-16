@@ -71,8 +71,7 @@ namespace Smooth
 noncomputable def shapeFnInt (G : ℝ → ℝ) (z : ℝ) : ℝ := ∫ t in Set.uIoc 0 z, G t
 
 /-- Constant `∫₀¹ G(t) dt` used to normalize the shape.
-TODO: Make it explicit that the upper bound can be any number ≥ 1.
-Experimentally it works, formally I don't know how to prove it -/
+See `integral_Ioc_eq_of_support_unit` for proof that any upper bound ≥ 1 gives the same value. -/
 noncomputable def shapeFnConst (G : ℝ → ℝ) : ℝ := ∫ t in Set.uIoc 0 1, G t
 
 /-- The normalized shape function -/
@@ -473,24 +472,31 @@ lemma iteratedDeriv_shapeFn_vanishes_at_endpoint_expNegInvGlue_comp
     (by simp [G, ha_zero, expNegInvGlue.zero])
     (fun k _ => iteratedDeriv_comp_expNegInvGlue_at hdenom_contDiff ha_zero k)
 
--- When G vanishes on [1, ∞), shapeFnInt equals shapeFnInt_denom for z ≥ 1
+-- General support bound: integral over Ioc 0 b equals integral over Ioc 0 1 when G vanishes on [1, ∞)
+lemma integral_Ioc_eq_of_support_unit
+    {G : ℝ → ℝ} (hint : IntervalIntegrable G volume 0 1)
+    (hint' : IntervalIntegrable G volume 1 b)
+    (hG_vanish : ∀ x, 1 ≤ x → G x = 0) (hb : 1 ≤ b) :
+    ∫ t in Set.Ioc 0 b, G t = ∫ t in Set.Ioc 0 1, G t := by
+  have hsplit := intervalIntegral.integral_add_adjacent_intervals hint hint'
+  rw [intervalIntegral.integral_of_le zero_le_one,
+      intervalIntegral.integral_of_le (zero_le_one.trans hb),
+      intervalIntegral.integral_of_le hb] at hsplit
+  have hzero : ∫ x in Set.Ioc 1 b, G x = 0 :=
+    MeasureTheory.setIntegral_eq_zero_of_forall_eq_zero fun t ht => hG_vanish t ht.1.le
+  linarith
+
+-- When G vanishes on [1, ∞), shapeFnInt equals shapeFnConst for z ≥ 1
 lemma shapeFnInt_eq_denom_of_one_le
     {G : ℝ → ℝ} (hG : ContDiff ℝ ∞ G)
     (hG_vanish : ∀ x, 1 ≤ x → G x = 0) {z : ℝ} (hz : 1 ≤ z) :
     shapeFnInt G z = shapeFnConst G := by
   simp only [shapeFnInt, shapeFnConst]
-  have h01 : (0 : ℝ) ≤ 1 := zero_le_one
-  have h0z : (0 : ℝ) ≤ z := zero_le_one.trans hz
-  rw [Set.uIoc_of_le h01, Set.uIoc_of_le h0z]
-  -- Use integral_add_adjacent_intervals with interval integrals
-  have hint01 : IntervalIntegrable G volume 0 1 := hG.continuous.intervalIntegrable 0 1
-  have hint1z : IntervalIntegrable G volume 1 z := hG.continuous.intervalIntegrable 1 z
-  have hsplit := intervalIntegral.integral_add_adjacent_intervals hint01 hint1z
-  rw [intervalIntegral.integral_of_le h01, intervalIntegral.integral_of_le h0z,
-      intervalIntegral.integral_of_le hz] at hsplit
-  have hzero : ∫ (x : ℝ) in Set.Ioc 1 z, G x = 0 :=
-    MeasureTheory.setIntegral_eq_zero_of_forall_eq_zero fun t ht => hG_vanish t ht.1.le
-  linarith [hsplit, hzero]
+  rw [Set.uIoc_of_le zero_le_one, Set.uIoc_of_le (zero_le_one.trans hz)]
+  exact integral_Ioc_eq_of_support_unit
+    (hG.continuous.intervalIntegrable 0 1)
+    (hG.continuous.intervalIntegrable 1 z)
+    hG_vanish hz
 
 -- Global smoothness of shapeFn when G is globally C^∞ and vanishes on (-∞, 0]
 lemma shape_fn_contDiff
