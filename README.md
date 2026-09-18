@@ -1,128 +1,125 @@
-# Smoothstep Curves: Infinitely Differentiable Curvature Functions
+# Smoothstep railway transition curves
 
-This file develops smoothstep-based curvature functions that provide $G^\infty$ continuous transitions between segments of constant curvature (for example, between tangent lines and circular arcs).
+A Lean 4 formalization of curvature transitions that are flat to every order at their endpoints.
 
-The key design is fixed and permeates the entire development:
+Railway alignments are assembled from pieces with different curvature. A straight has curvature $0$; a circular arc has some constant curvature $R \ne 0$. Although both pieces have zero curvature derivative,
 
-* We **always parameterize transitions by a bump function $G$** supported in $(0,1)$.
-* The shape function $H$ is *derived* — never assumed — as the normalized primitive of $G$.
-* Users stay in control of quantitative bounds (peak jerk, snap, …) by choosing the bump $G$ that best fits their application.  The API intentionally avoids a single “canonical” smoothstep.
+```math
+\frac{d\kappa_{\mathrm{straight}}}{ds}
+= \frac{d\kappa_{\mathrm{circle}}}{ds} = 0,
+\qquad
+\kappa_{\mathrm{straight}} \ne \kappa_{\mathrm{circle}},
+```
 
-With this normalization the qualitative requirements on $H$ (smooth, monotone, flat endpoints, normalized) become automatic consequences of the properties of $G$.
+joining them directly makes curvature jump at the join.
 
-We keep all constructions $C^\infty$ / $G^\infty$-smooth; no finite-order relaxation is used anywhere.
+A clothoid fixes that discontinuity by varying curvature linearly. But when the clothoid is joined to a straight or circular segment, its nonzero constant curvature derivative meets the zero derivative of the neighboring segment. The next order still changes abruptly.
 
-> [!WARNING]
-> This is proof has been "vibe-proved". I don't really know Lean 4, I just know enough to know what I'm trying to prove and how to formulate the end goal. I'd appreciate if someone who actually knows math could tell me any mistakes I made. If so, please leave an issue or pull request.
->
-> Thank you.
+This project asks the deliberately theoretical question: can the transition be made flat at both ends not just to one chosen order, but to **every** order?
 
-## Mathematical Framework
+The answer formalized here is yes, at the level of the curvature profile.
 
-A smoothstep curve is defined by a curvature function $\kappa(s)$ that smoothly transitions from a start curvature $R_1$ to an end curvature $R_2$:
+> [!NOTE]
+> A nonconstant polynomial transition spliced to constant curvature on either side can only hide the join for finitely many derivatives. A polynomial of finite degree cannot have every positive-order derivative vanish at an endpoint unless the relevant Taylor data make it constant, so some derivative must eventually be discontinuous. This observation motivates using a non-polynomial bump function, but it is not currently formalized in this repository.
 
-* Straight line: $R_i = 0$.
-* Circular arc: constant nonzero curvature $R_i$, with radius $1 / |R_i|$.
+## Construction
 
-We work with a **shape function** $H$ derived from a bump $G$.  Conceptually:
+Begin with a smooth bump $G : \mathbb R \to \mathbb R$ that is positive on $(0,1)$ and zero outside it. Normalize its cumulative integral:
 
-* Choose a nonnegative bump $G$ supported in $(0,1)$, globally $C^\infty$ on $\mathbb{R}$, vanishing for $z ≤ 0$, with $\int_0^1 G = 1$.
-* Define $$H(z) := \frac{\int_0^z G(t) dt}{\int_0^1 G(t) dt}$$ for all $z \in \mathbb{R}$.
-* Then $H : \mathbb{R} → \mathbb{R}$ is globally smooth, maps $[0,1]$ to $[0,1]$, is monotone on $[0,1]$, flat at the endpoints, and extends naturally to all of $\mathbb{R}$ (constant $0$ for $z ≤ 0$, constant $1$ for $z ≥ 1$).
+```math
+H(z) =
+\frac{\displaystyle\int_0^z G(t)\,dt}
+     {\displaystyle\int_0^1 G(t)\,dt}.
+```
 
-The implementation follows this viewpoint:
+The resulting shape function is a smooth step:
 
-* `HInt G z` is the primitive $\int_0^z G$.
-* `HInt_denom G` is $\int_0^1 G$, used for normalization.
-* `H G z := HInt G z / HInt_denom G` is the shape function exposed by the API, defined globally on $\mathbb{R}$.
-* The curvature expression is given directly in terms of $H$.
+- $H(z)=0$ for $z\le 0$;
+- $H(z)=1$ for $z\ge 1$;
+- $H$ is monotone on $[0,1]$; and
+- every positive-order derivative of $H$ vanishes at $0$ and $1$.
 
-The user chooses $G$ (bump shape) to control quantitative properties (e.g., max of $\kappa'$, $\kappa''$, …); the framework guarantees the qualitative properties (smoothness, flat joins, monotonic curvature change).
+For a transition of length $L>0$, from curvature $R_1$ to $R_2$, define
 
-### General Form
+```math
+\kappa(s) = R_1 + (R_2-R_1)H(s/L).
+```
 
-For a smoothstep curve with:
+Because $H$ is already constant outside the unit interval, this is one global function: $\kappa(s)=R_1$ before the transition and $\kappa(s)=R_2$ after it. At $s=0$ and $s=L$, every derivative of positive order is zero. The transition therefore agrees to every curvature-derivative order with the constant-curvature pieces on either side.
 
-* $s$  = arc length parameter with $0 ≤ s ≤ L$
-* $L$  = total length of the transition curve
-* $R_1$ = start curvature (constant before the transition)
-* $R_2$ = end curvature (constant after the transition)
-* $z := s / L ∈ [0,1]$ = normalized arc-length parameter
-* $\Delta R := R_2 - R_1$ = curvature change
+### Canonical example
 
-we define the curvature on the transition segment by
+The standard construction in this repository uses Mathlib's globally smooth `expNegInvGlue` with
 
-$$
-\kappa(s) = R_1 + \Delta R \cdot H(s/L).
-$$
+```math
+d(z)=z(1-z),
+\qquad
+G(z)=\exp\!\left(-\frac{1}{z(1-z)}\right) \quad \text{for } 0<z<1,
+\qquad
+G(z)=0 \quad \text{otherwise}.
+```
 
-where $H : \mathbb{R} → \mathbb{R}$ is the shape function constructed from $G$ as above (with $H$ mapping $[0,1]$ into $[0,1]$).
+This bump and all of its derivatives vanish at both endpoints. Integrating and normalizing it produces the required $H$. The framework is not tied to this one choice: `DenomParams` packages the conditions needed to construct other valid bumps of the form `expNegInvGlue ∘ denom`.
 
-The heading angle is
+## What Lean proves
 
-$$
-\theta(s)
-= \int_0^s \kappa(v) dv
-= R_1 s + \Delta R\cdot L \int_0^{s/L} H(u) du.
-$$
+The central `SmoothstepCurve` structure packages a shape function and its induced curvature function together with proofs that:
 
-The Cartesian coordinates (arc length parametrization) are
+- the shape and curvature functions are globally $C^\infty$;
+- the shape is constant outside $[0,1]$, has values $0$ and $1$ at the endpoints, and is monotone within the interval;
+- every positive-order derivative of the shape vanishes at both endpoints;
+- curvature takes the requested endpoint values and is monotone or antitone according to the direction of the curvature change; and
+- every positive-order curvature derivative vanishes at both joins.
 
-$$
-x(s) = \int_0^s \cos(\theta(v)) dv,\quad
-y(s) = \int_0^s \sin(\theta(v)) dv.
-$$
+The repository also proves several ways to build and combine these profiles:
 
-### Conditions on $H$
+- a canonical symmetric denominator and scaled, odd-power, and asymmetric families;
+- smooth reparameterization and convex mixing of existing shapes;
+- concatenation of two transitions through a shared curvature, including flatness of the internal join; and
+- a Viennese/Hasslinger-style layer coupling smooth cant to physical curvature, with smoothness and endpoint behavior proved for both profiles.
 
-At the abstract level, we want a shape function $H : \mathbb{R} → \mathbb{R}$ with:
+There are no `sorry` or `admit` placeholders in the Lean sources.
 
-1. **Global Smoothness**:
-   $H ∈ C^\infty(\mathbb{R})$ (globally smooth on all of $\mathbb{R}$).
+## What Lean does not prove
 
-2. **Boundary values and extension**:
-   $H(0) = 0,\quad H(1) = 1.$
-   $H(z) = 0$ for all $z ≤ 0$.
-   $H(z) = 1$ for all $z ≥ 1$.
+The formal development currently stops at curvature and cant profiles. It does not yet reconstruct a planar curve by integrating the Frenet equations and prove geometric $G^\infty$ continuity of that position curve. That is the geometric motivation for the construction, not a theorem claimed by this repository.
 
-3. **Monotonicity**:
-   $H'(z) ≥ 0$ for all $z ∈ [0,1]$.
-   Then if $\Delta R > 0$, curvature increases, and if $\Delta R < 0$, curvature decreases.
+Likewise, this is not a claim that the curve is practical or optimal for real railway design. It does not model vehicle dynamics, speed, track forces, construction tolerances, or regulatory constraints. Infinite-order smoothness is a mathematical property, not an engineering approval.
 
-4. **Flatness at endpoints**:
-   $H^{(n)}(0) = H^{(n)}(1) = 0$ for all $n ≥ 1$.
+`proofs/computable.lean` supplies a floating-point demonstration using Gauss–Legendre quadrature and RK4 integration. It is useful for evaluating and plotting examples, but its numerical error bounds and correspondence with the real-valued proofs are not themselves formally verified.
 
-These four properties, combined with global smoothness of $H$, imply that for all $s \in \mathbb{R}$,
+## Build
 
-$$
-\kappa^{(n)}(s) = \Delta R \cdot L^{-n} \cdot H^{(n)}(s/L),
-$$
+This project uses Lean 4 and Mathlib through Lake.
 
-and in particular
+```bash
+lake exe cache get   # optional: download pre-built Mathlib artifacts
+lake build
+lake exe runLinter
+```
 
-$$
-\kappa^{(n)}(0) = \kappa^{(n)}(L) = 0 \quad\text{for all } n ≥ 1.
-$$
+Do not run `lake clean`: rebuilding Mathlib from scratch can take a long time.
 
-Since $H$ is globally $C^\infty$ and extends naturally (constant $0$ for $z ≤ 0$, constant $1$ for $z ≥ 1$), the curvature function $\kappa$ is also globally $C^\infty$ on all of $\mathbb{R}$. When we extend $\kappa$ by constants $R_1$ for $s < 0$ and $R_2$ for $s > L$, all derivatives match at $0$ and $L$, giving $G^\infty$ continuity at the joins. This matches the fact that tangents and circular arcs have constant curvature, so all of their curvature derivatives (order $\ge 1$) vanish.
+## Repository guide
 
-### Equivalence with the Bump-Function Framework
+| Path | Contents |
+| --- | --- |
+| `proofs/smoothstep_curve.lean` | Generic bump-to-shape construction and `SmoothstepCurve` |
+| `proofs/curve_examples.lean` | Concrete families, closure properties, and concatenation |
+| `proofs/viennese_curve.lean` | Cant and physical-curvature model |
+| `proofs/computable.lean` | Executable floating-point approximation and curve integration |
+| `proofs.lean` | Library entry point |
 
-The implementation actually starts from a bump $G$ and *derives* $H$ from it. The key mathematical fact is:
+## Background
 
-*If* $H$ *satisfies the four conditions above, then:*
+This grew out of a search for better track geometry while playing Transport Fever 2. The longer account covers the path from Bézier curves, through clothoids and higher-order continuity, to this bump-function construction:
 
-* $G := H'$ is a nonnegative globally $C^\infty$ bump supported in $(0,1)$ with $\int_0^1 G = 1$,
+- [A deep dive into curves and smoothness, part 1](https://www.westrom.xyz/blog/007-curves-part-1)
+- [A deep dive into curves and smoothness, part 2](https://www.westrom.xyz/blog/008-curves-part-2)
+- [Discussion on the Lean Zulip](https://leanprover.zulipchat.com/#narrow/channel/583339-AI-authored-projects/topic/Bump.20Function-based.20Railway.20Transition.20Curve/with/625308180)
 
-* and conversely, if $G ≥ 0$ is globally $C^\infty$, vanishes for $z ≤ 0$, is supported in $(0,1)$, and $\int_0^1 G = 1$, and we set $H(z) := \int_0^z G(t)\,dt / \int_0^1 G(t)\,dt$, then $H$ satisfies (1)–(4).
+The broader motivation was informed by Raph Levien's [*From Spiral to Spline: Optimal Techniques in Interactive Curve Design*](https://levien.com/phd/thesis.pdf) and the review [*Railway Transition Curves: A Review of the State-of-the-Art and Future Research*](https://doi.org/10.3390/infrastructures5050043).
 
-Thus the four abstract conditions on $H$ are exactly equivalent to saying:
+## Review wanted
 
-> $H$ is the normalized cumulative integral of a nonnegative globally $C^\infty$ bump $G$ supported in $(0,1)$ and vanishing for $z ≤ 0$.
-
-In this file:
-
-- The **generic framework** (`Smooth` namespace) formalizes the passage from `G` to `H` together with the curvature profile $\kappa$, establishing global $C^\infty$ smoothness throughout.
-- The **`SmoothstepCurve` structure** packages the resulting $H$ (globally smooth on $\mathbb{R}$), the curvature $\kappa$, and all accompanying properties (global smoothness, flat joins, monotonicity on $[0,1]$).
-- The constructor `mkSmoothstepCurveFromShape` allows users to supply shape functions directly, while `curveFrom` builds curves from `DenomParams` structures. The `curveFrom` constructor turns *any* denominator function into a bump via `expNegInvGlue ∘ denom`, so the public API never fixes a single smoothstep.
-- Example implementations include `curveCanonical`, `curveScaled`, `curvePow`, and `curvePoly`, demonstrating concrete denominators with different quantitative trade-offs while respecting the generic bump → shape → curvature pipeline.
+This is an AI-assisted formalization written while learning Lean. A successful build checks the proof terms, but it does not guarantee that the definitions capture every intended geometric or railway-engineering claim. Mathematical, Lean, and railway-engineering review is welcome, especially counterexamples, missing hypotheses, or places where the informal interpretation outruns the formal result.
