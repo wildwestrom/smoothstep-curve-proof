@@ -14,7 +14,7 @@ In the normalized domain z = s/L (where L is the transition length), d²ψ/ds² 
 
   `κ_H(z) = (κ_ref / ψ_ref) · ψ(z) − (h / L²) · d²ψ/dz²`
 
-where `ψ(z) = ψ_start + Δψ · H(z)`.
+where `ψ(z) = ψ_start + Δψ · shapeFn(z)`.
 -/
 
 open scoped ContDiff
@@ -45,7 +45,7 @@ section VienneseCurveDefs
 
 /-- Cant profile induced by a smoothstep shape. -/
 noncomputable def vienneseCant (sc : SmoothstepCurve) (psi_start psi_end : ℝ) : ℝ → ℝ :=
-  fun z => psi_start + (psi_end - psi_start) * sc.H z
+  fun z => psi_start + (psi_end - psi_start) * sc.shapeFn z
 
 /-- Physical curvature at aligning height `h_align` following the Viennese/Hasslinger model. -/
 noncomputable def vienneseKappa (sc : SmoothstepCurve) (h_align L kappa_ref psi_ref psi_start psi_end : ℝ) : ℝ → ℝ :=
@@ -56,28 +56,28 @@ noncomputable def vienneseKappa (sc : SmoothstepCurve) (h_align L kappa_ref psi_
 
 lemma cant_contDiff (sc : SmoothstepCurve) (psi_start psi_end : ℝ) :
     ContDiff ℝ ∞ (vienneseCant sc psi_start psi_end) :=
-  contDiff_const.add (contDiff_const.mul sc.H_is_C_inf)
+  contDiff_const.add (contDiff_const.mul sc.shapeFn_is_C_inf)
 
 lemma cant_at_zero (sc : SmoothstepCurve) (psi_start psi_end : ℝ) :
     vienneseCant sc psi_start psi_end 0 = psi_start := by
-  simp [vienneseCant, sc.H_zero]
+  simp [vienneseCant, sc.shapeFn_zero]
 
 lemma cant_at_one (sc : SmoothstepCurve) (psi_start psi_end : ℝ) :
     vienneseCant sc psi_start psi_end 1 = psi_end := by
   unfold vienneseCant
-  rw [sc.H_one]
+  rw [sc.shapeFn_one]
   ring
 
 lemma cant_deriv_vanishes (sc : SmoothstepCurve) (psi_start psi_end : ℝ)
     (n : ℕ) (hn : 1 ≤ n) (x : ℝ) (hx : x = 0 ∨ x = 1) :
     iteratedDeriv n (vienneseCant sc psi_start psi_end) x = 0 := by
   have hn' : 0 < n := Nat.one_le_iff_ne_zero.mp hn |>.bot_lt
-  show iteratedDeriv n (fun z => psi_start + (psi_end - psi_start) * sc.H z) x = 0
+  show iteratedDeriv n (fun z => psi_start + (psi_end - psi_start) * sc.shapeFn z) x = 0
   rw [iteratedDeriv_const_add hn']
   rw [iteratedDeriv_const_mul_field]
   rcases hx with rfl | rfl
-  · simp [sc.H_deriv_vanishes_at_zero n hn]
-  · simp [sc.H_deriv_vanishes_at_one n hn]
+  · simp [sc.shapeFn_deriv_vanishes_at_zero n hn]
+  · simp [sc.shapeFn_deriv_vanishes_at_one n hn]
 
 /-! ### Physical curvature lemmas -/
 
